@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ca">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Visor PDF Pro v3.1</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e293b">
+
+    <!-- Estils -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Llibreries -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-slate-200 text-slate-800 h-screen flex flex-col overflow-hidden font-sans">
+
+    <div id="appletContainer" style="width:1px; height:1px; position:absolute; top:-100px;"></div>
+
+    <!-- HEADER -->
+    <header
+        class="bg-slate-800 text-white h-14 flex items-center justify-between px-3 shadow-md z-30 shrink-0 relative">
+        <div class="flex items-center gap-3">
+            <button id="toggleSidebarBtn" class="p-2 hover:bg-slate-700 rounded transition" title="Barra Lateral">
+                <i data-lucide="panel-left" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-2 mr-4 overflow-hidden">
+                <i data-lucide="file-text" class="text-blue-400 w-5 h-5 flex-shrink-0"></i>
+                <h1 class="font-semibold text-sm sm:text-base truncate max-w-[120px] sm:max-w-xs" id="docTitle">Sense
+                    Document</h1>
+            </div>
+
+            <!-- Eines Ràpides Eliminades -->
+            <div class="flex items-center gap-1 ml-4 border-l border-slate-600 pl-4 h-8">
+                <button id="undoBtn" onclick="window.app.undo()"
+                    class="p-1.5 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Desfer" disabled>
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
+                </button>
+                <button id="redoBtn" onclick="window.app.redo()"
+                    class="p-1.5 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Refer" disabled>
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="flex-1"></div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Page Navigation (Header) -->
+            <div id="headerPageNav" class="hidden sm:flex items-center bg-slate-700 rounded mr-2">
+                <button onclick="window.app.changePage(-1)" class="p-1.5 hover:bg-slate-600 rounded-l transition"><i
+                        data-lucide="chevron-left" class="w-3 h-3"></i></button>
+                <span class="text-xs px-2 font-mono text-center flex items-center gap-1">
+                    <span id="currentPageNumHeader">0</span>/<span id="totalPageNumHeader">0</span>
+                </span>
+                <button onclick="window.app.changePage(1)" class="p-1.5 hover:bg-slate-600 rounded-r transition"><i
+                        data-lucide="chevron-right" class="w-3 h-3"></i></button>
+            </div>
+
+            <!-- Zoom Controls -->
+            <div class="hidden sm:flex items-center bg-slate-700 rounded mr-2">
+                <button onclick="window.app.changeZoom(-0.1)" class="p-1.5 hover:bg-slate-600 rounded-l"><i
+                        data-lucide="minus" class="w-3 h-3"></i></button>
+                <span id="zoomDisplay" class="text-xs px-2 font-mono w-12 text-center">100%</span>
+                <button onclick="window.app.changeZoom(0.1)" class="p-1.5 hover:bg-slate-600 rounded-r"><i
+                        data-lucide="plus" class="w-3 h-3"></i></button>
+            </div>
+
+            <!-- Settings / View Mode -->
+            <button onclick="window.app.toggleViewMode()" id="viewModeBtn"
+                class="p-2 hover:bg-slate-700 rounded transition text-slate-300"
+                title="Canviar Vista (Contínua/Pàgina)">
+                <i data-lucide="scroll-text" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Verify/Sign removed -->
+
+            <input type="file" id="mainPdfInput" accept="application/pdf" class="hidden">
+            <button onclick="document.getElementById('mainPdfInput').click()"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white transition font-medium text-sm">
+                <i data-lucide="folder-open" class="w-4 h-4"></i> <span class="hidden sm:inline">Obrir</span>
+            </button>
+
+            <button onclick="window.app.downloadPdf()" id="saveBtn"
+                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white transition font-medium text-sm opacity-50 cursor-not-allowed"
+                disabled>
+                <i data-lucide="save" class="w-4 h-4"></i> <span class="hidden sm:inline">Desar</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- AREA DE TREBALL -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar"
+            class="bg-slate-100 border-r border-slate-300 flex flex-col transition-all duration-300 overflow-hidden w-64">
+
+            <!-- CAPÇALERA SIDEBAR DINÀMICA -->
+            <div id="sidebarHeaderDefault"
+                class="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wide shrink-0">
+                <span>Pàgines (<span id="pageCount">0</span>)</span>
+            </div>
+
+            <!-- CAPÇALERA MULTI-SELECCIÓ -->
+            <div id="sidebarHeaderSelection"
+                class="hidden p-2 border-b border-blue-200 bg-blue-50 flex items-center justify-between shrink-0">
+                <span class="text-xs font-bold text-blue-700"><span id="selectedCount">0</span> sel.</span>
+                <div class="flex gap-1">
+                    <button onclick="window.app.rotateSelected(-90)"
+                        class="p-1.5 bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700"
+                        title="Rotar Esquerra"><i data-lucide="rotate-ccw" class="w-3 h-3"></i></button>
+                    <button onclick="window.app.rotateSelected(90)"
+                        class="p-1.5 bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700"
+                        title="Rotar Dreta"><i data-lucide="rotate-cw" class="w-3 h-3"></i></button>
+                    <button onclick="window.app.extractSelected()"
+                        class="p-1.5 bg-white border border-green-200 rounded hover:bg-green-100 text-green-700"
+                        title="Extreure / Guardar Selecció"><i data-lucide="download" class="w-3 h-3"></i></button>
+                    <div class="w-px h-4 bg-blue-200 mx-1"></div>
+                    <button onclick="window.app.moveSelected(-1)"
+                        class="p-1.5 bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700"
+                        title="Moure Amunt"><i data-lucide="arrow-up" class="w-3 h-3"></i></button>
+                    <button onclick="window.app.moveSelected(1)"
+                        class="p-1.5 bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700"
+                        title="Moure Avall"><i data-lucide="arrow-down" class="w-3 h-3"></i></button>
+                    <button onclick="window.app.deleteSelected()"
+                        class="p-1.5 bg-white border border-red-200 rounded hover:bg-red-50 text-red-600"
+                        title="Esborrar Seleccionades"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    <button onclick="window.app.clearSelection()"
+                        class="p-1.5 hover:bg-slate-200 rounded text-slate-500"><i data-lucide="x"
+                            class="w-3 h-3"></i></button>
+                </div>
+            </div>
+
+            <div id="thumbnailsContainer" class="flex-1 overflow-y-auto p-4 space-y-4 text-center select-none">
+                <div class="text-slate-400 text-sm mt-10 italic">Obre un document</div>
+            </div>
+
+            <!-- Llegenda d'ajuda -->
+            <div class="p-2 text-[10px] text-center text-slate-400 border-t bg-slate-50">
+                Ctrl+Click per selecció múltiple<br>Shift+Click per rang
+            </div>
+        </aside>
+
+        <!-- MAIN VIEW -->
+        <main class="flex-1 bg-slate-500 relative flex flex-col overflow-hidden" id="mainArea">
+            <!-- Navegació Flotant -->
+            <!-- Navegació Flotant (Eliminada - moved to other UI if needed, or user relies on scroll) -->
+            <!-- Si l'usuari vol eliminar-ho 'per complet', ho traiem. 
+                 Però necessitem saber com canviar de pàgina en mode 'single'.
+                 Potser afegim botons al header o sidebar?
+                 De moment, elimino el footer com demana. -->
+
+            <!-- Scroll Container -->
+            <div id="mainScroll" class="flex-1 overflow-auto flex justify-center p-4 sm:p-8 relative">
+                <div id="pagesWrapper"
+                    class="flex flex-col items-center gap-4 transition-transform duration-200 origin-top">
+                    <!-- Canvas -->
+                </div>
+            </div>
+        </main>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside id="rightSidebar"
+            class="bg-slate-100 border-l border-slate-300 w-16 flex flex-col items-center py-4 gap-4 z-20 shrink-0 shadow-lg">
+            <button onclick="window.app.toggleTool('insert')"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Inserir PDF">
+                <i data-lucide="file-plus" class="w-6 h-6"></i>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">Inserir</span>
+            </button>
+            <button onclick="window.app.toggleTool('text')"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Afegir Text">
+                <i data-lucide="type" class="w-6 h-6"></i>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">Text</span>
+            </button>
+            <button onclick="window.app.toggleTool('signature')"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Signatura">
+                <div class="relative">
+                    <i data-lucide="pen-tool" class="w-6 h-6"></i>
+                    <span id="configDot"
+                        class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></span>
+                </div>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">Signatura</span>
+            </button>
+            <button onclick="window.app.toggleTool('watermark')"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Marca d'Aigua">
+                <i data-lucide="stamp" class="w-6 h-6"></i>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">Marca
+                    d'Aigua</span>
+            </button>
+            <button onclick="window.app.toggleTool('draw')" id="drawBtn"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Dibuixar">
+                <i data-lucide="pen" class="w-6 h-6"></i>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">Dibuixar</span>
+            </button>
+            <button onclick="window.app.toggleTool('verify')" id="sidebarVerifyBtn"
+                class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
+                title="Verificar Signatures">
+                <i data-lucide="shield-check" class="w-6 h-6"></i>
+                <span
+                    class="absolute right-full mr-2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">Verificar</span>
+            </button>
+            <!-- Sidebar Expandible Panels -->
+            <div id="sidebarPanels"
+                class="hidden flex-col gap-4 w-60 border-t border-slate-200 mt-2 p-2 overflow-y-auto h-full">
+
+                <!-- INSERT TOOL -->
+                <div id="panel-insert" class="tool-panel hidden">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-slate-700">Inserir PDF</h3>
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-slate-500 uppercase mb-2">Ubicació</label>
+                        <div class="flex flex-col gap-2">
+                            <label
+                                class="border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-slate-50 bg-white">
+                                <input type="radio" name="insertPos" value="before" checked> Abans pàg actual
+                            </label>
+                            <label
+                                class="border rounded p-2 flex items-center gap-2 cursor-pointer hover:bg-slate-50 bg-white">
+                                <input type="radio" name="insertPos" value="after"> Després
+                            </label>
+                        </div>
+                    </div>
+                    <button onclick="window.app.triggerMerge()" class="btn-primary w-full text-sm">Seleccionar
+                        Fitxer</button>
+                </div>
+
+                <!-- TEXT TOOL -->
+                <div id="panel-text" class="tool-panel hidden">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-indigo-700">Afegir Text</h3>
+                    <textarea id="pdfTextInput" class="w-full border p-2 rounded mb-2 text-sm" rows="3"
+                        placeholder="Escriu el text..."></textarea>
+                    <div class="flex gap-2 mb-2">
+                        <input type="number" id="pdfTextSize" value="12" class="border p-1 rounded w-16 text-sm"
+                            title="Mida">
+                        <input type="color" id="pdfTextColor" value="#000000"
+                            class="h-8 w-8 cursor-pointer border rounded">
+                    </div>
+                    <button onclick="window.app.applyTextToPdf()" class="btn-primary w-full text-sm">Afegir a
+                        Pàgina</button>
+                    <p class="text-xs text-slate-400 mt-2">Fes clic a la pàgina per col·locar.</p>
+                </div>
+
+                <!-- SIGNATURE TOOL -->
+                <div id="panel-signature" class="tool-panel hidden">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-slate-700">Signatura</h3>
+
+                    <div class="mb-2">
+                        <label class="label-tiny">Imatge (Rúbrica)</label>
+                        <input type="file" id="signatureFileInput" accept="image/png, image/jpeg" class="hidden">
+                        <button onclick="document.getElementById('signatureFileInput').click()"
+                            class="w-full border p-2 rounded text-left flex items-center gap-2 text-xs hover:bg-white truncate">
+                            <i data-lucide="image" class="w-4 h-4"></i> <span id="sigFileName"
+                                class="truncate">Seleccionar...</span>
+                        </button>
+                        <img id="sigPreview"
+                            class="hidden mt-2 w-full h-auto max-h-32 object-contain border rounded bg-white p-1" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="label-tiny">Posició</label>
+                        <div class="bg-white p-2 rounded border">
+                            <div id="posSummary" class="text-xs mb-2 font-medium">Pàgina Actual</div>
+                            <button onclick="window.app.activateSelectionMode('signature')"
+                                class="w-full bg-indigo-50 text-indigo-700 py-1 rounded text-xs border border-indigo-100 font-medium hover:bg-indigo-100">Definir
+                                Àrea</button>
+                        </div>
+                    </div>
+
+                    <button onclick="window.app.applyImageSignatureVisualOnly()"
+                        class="btn-primary w-full text-sm mb-2">Estampar (Visual)</button>
+
+                    <hr class="border-slate-200 my-2">
+
+                    <button onclick="window.app.signWithAutoFirma()" id="autoFirmaBtn"
+                        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition">
+                        <i data-lucide="pen-tool" class="w-4 h-4"></i> Signar amb AutoFirma
+                    </button>
+                </div>
+
+                <!-- WATERMARK TOOL -->
+                <div id="panel-watermark" class="tool-panel hidden">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-slate-700">Marca d'Aigua</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="label-tiny">Text</label>
+                            <input type="text" id="wmText" value="CONFIDENCIAL"
+                                class="w-full border p-1 rounded text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="label-tiny">Mida</label>
+                                <input type="number" id="wmSize" value="50" class="w-full border p-1 rounded text-sm">
+                            </div>
+                            <div>
+                                <label class="label-tiny">Color</label>
+                                <input type="color" id="wmColor" value="#ff0000"
+                                    class="w-full h-7 cursor-pointer rounded border border-gray-200">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="label-tiny">Opacitat</label>
+                                <input type="number" id="wmOpacity" value="0.3" step="0.1" min="0.1" max="1"
+                                    class="w-full border p-1 rounded text-sm">
+                            </div>
+                            <div>
+                                <label class="label-tiny">Rotació</label>
+                                <input type="number" id="wmRotation" value="45"
+                                    class="w-full border p-1 rounded text-sm">
+                            </div>
+                        </div>
+                        <button onclick="window.app.applyWatermark()"
+                            class="btn-primary w-full text-sm">Aplicar</button>
+                    </div>
+                </div>
+
+                <!-- DRAW TOOL (Moved inside panel logic) -->
+                <div id="panel-draw" class="tool-panel hidden flex flex-col items-center gap-2">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-slate-700 w-full">Eines Dibuix</h3>
+                    <div class="flex items-center gap-3 w-full justify-center bg-white p-2 rounded border">
+                        <input type="color" id="inkColor" value="#ff0000"
+                            class="w-8 h-8 rounded-full cursor-pointer border border-slate-300 overflow-hidden"
+                            title="Color">
+                        <input type="number" id="inkSize" value="2" min="1" max="10"
+                            class="w-12 text-center text-sm border rounded p-1" title="Gruix">
+                    </div>
+                    <button onclick="window.app.saveDrawing()"
+                        class="w-full bg-green-100 text-green-700 px-2 py-1.5 rounded hover:bg-green-200 font-bold text-xs uppercase tracking-wide">Guardar
+                        Dibuix</button>
+                </div>
+
+                <!-- VERIFY PANEL -->
+                <div id="panel-verify" class="tool-panel hidden">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-sm text-slate-700">Signatures Detectades</h3>
+                    <div id="signaturesListPanel" class="space-y-2 text-sm text-slate-600">
+                        <div class="italic text-center text-slate-400 py-4">Cap signatura detectada</div>
+                        <!-- Results populated by JS -->
+                    </div>
+                </div>
+
+                <button onclick="window.app.closeSidePanel()"
+                    class="mt-auto text-xs text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 py-4 border-t border-slate-200">
+                    <i data-lucide="chevron-right" class="w-3 h-3"></i> Tancar Panell
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- MODALS & OVERLAYS -->
+
+    <!-- Insert Modal REMOVED (Moved to Sidebar) -->
+    <input type="file" id="mergePdfInput" accept="application/pdf" class="hidden">
+    <!-- Text Modal REMOVED (Moved to Sidebar) -->
+    <!-- Signature Modal REMOVED (Moved to Sidebar) -->
+    <!-- Watermark Modal REMOVED (Moved to Sidebar) -->
+
+    <!-- Verification Modal REMOVED (Moved to Sidebar) -->
+
+    <!-- Selection Overlay -->
+    <div id="selectionOverlay" class="fixed inset-0 z-50 bg-gray-900 hidden flex flex-col">
+        <div class="bg-white p-3 flex justify-between items-center shadow shrink-0">
+            <h3 class="font-bold flex gap-2"><i data-lucide="scan-line" class="text-indigo-600"></i> Dibuixa Rectangle
+            </h3>
+            <div class="flex gap-2">
+                <button onclick="window.app.confirmSelection()" class="btn-primary">Confirmar</button>
+                <button onclick="window.app.closeSelectionMode()" class="text-gray-500 hover:text-black"><i
+                        data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-auto bg-gray-800 flex justify-center p-8 relative cursor-crosshair touch-none">
+            <div class="relative shadow-2xl">
+                <canvas id="selectionBgCanvas" class="absolute inset-0 pointer-events-none"></canvas>
+                <canvas id="selectionCanvas" class="relative z-10"></canvas>
+            </div>
+        </div>
+    </div>
+
+    </div>
+    </div>
+
+    <!-- Drawing Controls (Floating) - REMOVED -->
+
+    <!-- Loader & Alerts -->
+    <div id="loader"
+        class="fixed inset-0 z-[100] bg-white/90 backdrop-blur hidden flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p class="mt-4 font-medium text-slate-600" id="loaderText">Processant...</p>
+    </div>
+
+    <div id="customAlertModal" class="modal hidden">
+        <div class="modal-content text-center max-w-sm">
+            <div class="mx-auto h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mb-4"><i
+                    data-lucide="info" class="text-blue-600"></i></div>
+            <p id="alertMsg" class="mb-4">Alert</p>
+            <button onclick="document.getElementById('customAlertModal').classList.add('hidden')"
+                class="btn-primary w-full">D'acord</button>
+        </div>
+    </div>
+
+    <script src="autoscript.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

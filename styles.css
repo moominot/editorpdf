@@ -1,0 +1,12 @@
+/* CSS Updates if needed, currently reusing Tailwind utility classes */
+
+#sidebar {
+    transition: width 0.3s ease, padding 0.3s ease;
+}
+
+#sidebar.closed {
+    width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
+}
