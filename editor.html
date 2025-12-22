@@ -173,7 +173,7 @@
                     <i data-lucide="chevron-down" class="w-3 h-3"></i>
                 </button>
                 <div id="driveOptions"
-                    class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-50 border border-slate-200 overflow-hidden">
+                    class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-[100] border border-slate-200 overflow-hidden">
                     <button onclick="window.app.saveToDrive(true)"
                         class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
                         <i data-lucide="save" class="w-4 h-4 text-blue-500"></i> Sobreviure Original
@@ -192,8 +192,7 @@
             <!-- Google Auth Button (Hidden when signed in) -->
             <button id="authBtn" onclick="window.app.handleAuthClick()"
                 class="hidden flex items-center gap-2 px-3 py-1.5 rounded-md bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition font-medium text-sm">
-                <img src="https://www.gstatic.com/images/branding/product/1x/gdrive_32dp.png" class="w-5 h-5"
-                    alt="Drive">
+                <img src="gdicon.png" class="w-5 h-5" alt="Drive">
                 Connectar Drive
             </button>
         </div>
