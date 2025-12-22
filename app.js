@@ -50,7 +50,15 @@ const appState = {
 
     // Altres eines
     highlights: [], // { pageIndex, rects: [], color }
-    activeTool: null
+    activeTool: null,
+
+    // Search
+    searchState: {
+        query: '',
+        matches: [], // Array de { pageIndex, matchIndex, rects: [{left, top, width, height}], text }
+        currentMatchIndex: -1,
+        isActive: false
+    }
 };
 
 // Imports
@@ -139,6 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
     if (!/Android|iPhone/i.test(navigator.userAgent)) checkAndInitAutoFirma();
+
+    // Init Sidebars based on screen size
+    if (window.innerWidth >= 768) {
+        document.getElementById('sidebar').classList.remove('closed');
+    } else {
+        document.getElementById('sidebar').classList.add('closed');
+    }
 });
 
 function setupEventListeners() {
@@ -204,11 +219,48 @@ function setupEventListeners() {
         deleteSelected: deleteSelected,
         clearSelection: clearSelection,
         applyWatermark: applyWatermark,
-        saveDrawing: saveDrawing
+        saveDrawing: saveDrawing,
+        toggleSidebarMobile: () => {
+            document.getElementById('sidebar').classList.toggle('closed');
+        },
+        toggleRightSidebarMobile: () => {
+            const rs = document.getElementById('rightSidebar');
+            rs.classList.toggle('mobile-open');
+        },
+        toggleMobilePanelHeight: () => {
+            const p = document.getElementById('sidebarPanels');
+            // Toggle between minimized and maximized only
+            if (p.classList.contains('panel-minimized')) {
+                p.classList.remove('panel-minimized');
+                p.classList.add('panel-maximized');
+            } else {
+                p.classList.remove('panel-maximized');
+                p.classList.add('panel-minimized');
+            }
+        },
+        // Search functions
+        toggleSearch: toggleSearch,
+        closeSearch: closeSearch,
+        searchNext: searchNext,
+        searchPrevious: searchPrevious
     });
 
     // Listener for text selection (highlighting)
     document.addEventListener('mouseup', handleHighlightSelection);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Ctrl+F or Cmd+F to toggle search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            toggleSearch();
+        }
+    });
+
+    // Search input listener
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        performSearch(e.target.value);
+    });
 }
 
 // --- CORE LOGIC ---
@@ -291,47 +343,87 @@ async function renderMainView() {
     } else { // Continuous
         // document.getElementById('pageNavControls').style.pointerEvents = 'none';
         // document.getElementById('pageNavControls').classList.add('opacity-0');
-        wrapper.className = "flex flex-col items-center gap-12 py-10";
+        wrapper.className = "flex flex-col items-center gap-4 py-10 min-w-min mx-auto";
+
+        // Get first page to determine base scale for mobile
+        const firstPage = await pdfjsDoc.getPage(1);
+        const unscaledVp = firstPage.getViewport({ scale: 1 });
+        let baseScale = 1.5; // Desktop default
+
+        if (window.innerWidth < 768) {
+            const containerW = document.getElementById('mainArea').offsetWidth;
+            baseScale = (containerW - 32) / unscaledVp.width; // 32px padding
+        }
 
         for (let i = 1; i <= numPages; i++) {
             (function (idx) {
                 const container = document.createElement('div');
-                // Use explicit style height AND class. 800px provides a good default for A4.
                 container.className = "relative bg-white shadow-lg page-container";
-                container.style.minHeight = "800px";
+                // Don't set min-height - let it be determined by canvas size
+
                 wrapper.appendChild(container);
 
                 const canvas = document.createElement('canvas');
                 container.appendChild(canvas);
 
                 pdfjsDoc.getPage(idx).then(async page => {
-                    const viewport = page.getViewport({ scale: appState.zoom * 1.5 });
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    canvas.style.width = `${viewport.width / 1.5}px`;
-                    canvas.style.height = `${viewport.height / 1.5}px`;
+                    const viewport = page.getViewport({ scale: appState.zoom * baseScale });
+                    const displayScale = appState.zoom * baseScale;
+
+                    // Canvas sizing - High DPI aware logic is missing here in original, keeping original style scaling
+                    // Original: 
+                    // canvas.width = viewport.width; canvas.height = viewport.height;
+                    // canvas.style.width = `${viewport.width / 1.5}px`... suspicious.
+                    // The original code was dividing by 1.5 in style, but viewport was * 1.5? 
+                    // Meaning internal resolution was 1.5x visual size (good for quality).
+                    // We should preserve this "high quality render" logic.
+                    // Visual Size = appState.zoom * baseScale (visual)
+                    // Render Size = Visual Size * outputScale (usually 1.5 or 2 for quality)
+
+                    // Original code:
+                    // viewport = page.getViewport({ scale: appState.zoom * 1.5 });
+                    // canvas.style.width = `${viewport.width / 1.5}px`;
+                    // So effective visual scale was `appState.zoom`.
+
+                    // New Logic:
+                    // We want visual scale to be baseScale * appState.zoom.
+                    // So Render Scale = (baseScale * appState.zoom) * 1.5 (quality factor).
+
+                    const visualScale = baseScale * appState.zoom;
+                    const qualityFactor = 1.5;
+                    const renderViewport = page.getViewport({ scale: visualScale * qualityFactor });
+
+                    canvas.height = renderViewport.height;
+                    canvas.width = renderViewport.width;
+                    canvas.style.width = `${renderViewport.width / qualityFactor}px`;
+                    canvas.style.height = `${renderViewport.height / qualityFactor}px`;
+
+                    // Set container size to match canvas
+                    container.style.width = canvas.style.width;
+                    container.style.height = canvas.style.height;
 
                     // Text Layer
                     const textLayerDiv = document.createElement('div');
                     textLayerDiv.className = "textLayer";
-                    textLayerDiv.dataset.pageIndex = idx - 1; // Store page index
+                    textLayerDiv.dataset.pageIndex = idx - 1;
+                    // Store the visual scale for later use in highlight calculations
+                    textLayerDiv.dataset.visualScale = visualScale;
                     textLayerDiv.style.width = canvas.style.width;
                     textLayerDiv.style.height = canvas.style.height;
                     container.appendChild(textLayerDiv);
 
                     const textContent = await page.getTextContent();
+                    const textViewport = page.getViewport({ scale: visualScale });
                     pdfjsLib.renderTextLayer({
                         textContent: textContent,
                         container: textLayerDiv,
-                        viewport: page.getViewport({ scale: appState.zoom }), // Match visual size
+                        viewport: textViewport,
                         textDivs: []
                     });
 
-                    const visualViewport = page.getViewport({ scale: appState.zoom });
-
-                    page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise.then(() => {
-                        renderNotesOverlay(container, visualViewport, idx - 1);
-                        renderTextAnnotationsOverlay(container, visualViewport, idx - 1);
+                    page.render({ canvasContext: canvas.getContext('2d'), viewport: renderViewport }).promise.then(() => {
+                        renderNotesOverlay(container, textViewport, idx - 1);
+                        renderTextAnnotationsOverlay(container, textViewport, idx - 1);
                     });
                 });
             })(i);
@@ -366,7 +458,10 @@ async function renderSinglePage(pdfjsDoc, wrapper) {
     // Mantenim lògica: zoom 1 = scale 1 (mida real)? No, `appState.zoom` és multiplicador.
     // Canvi: BaseScale serà 1.5, i appState.zoom multiplica això.
     // O millor:
-    const fitScale = Math.min(scaleX, scaleY);
+    const fitScale = (window.innerWidth < 768)
+        ? scaleX  // Mobile: Fit Width
+        : Math.min(scaleX, scaleY); // Desktop: Fit Best (Page)
+
     const finalScale = fitScale * appState.zoom;
 
     const viewport = page.getViewport({ scale: finalScale });
@@ -384,6 +479,8 @@ async function renderSinglePage(pdfjsDoc, wrapper) {
     const textLayerDiv = document.createElement('div');
     textLayerDiv.className = "textLayer";
     textLayerDiv.dataset.pageIndex = i;
+    // Store the visual scale for later use in highlight calculations
+    textLayerDiv.dataset.visualScale = finalScale;
     textLayerDiv.style.width = canvas.style.width;
     textLayerDiv.style.height = canvas.style.height;
     container.appendChild(textLayerDiv);
@@ -529,6 +626,10 @@ function updatePageNumberDisplay() {
 
     const hTot = document.getElementById('totalPageNumHeader');
     if (hTot) hTot.innerText = total;
+
+    // Mobile Display
+    const mDisplay = document.getElementById('mobilePageDisplay');
+    if (mDisplay) mDisplay.innerText = `${current} / ${total}`;
 }
 
 async function renderSidebar(scrollToPage = true) {
@@ -970,9 +1071,45 @@ function updateUndoRedoUI() {
 // --- UTILITATS INTERFICIE ---
 
 function changeZoom(delta) {
+    const mainScroll = document.getElementById('mainScroll');
+
+    // Save current scroll position and dimensions
+    const oldZoom = appState.zoom;
+    const scrollLeft = mainScroll.scrollLeft;
+    const scrollTop = mainScroll.scrollTop;
+    const scrollWidth = mainScroll.scrollWidth;
+    const scrollHeight = mainScroll.scrollHeight;
+    const clientWidth = mainScroll.clientWidth;
+    const clientHeight = mainScroll.clientHeight;
+
+    // Calculate center point of viewport
+    const centerX = scrollLeft + clientWidth / 2;
+    const centerY = scrollTop + clientHeight / 2;
+
+    // Calculate relative position (0 to 1)
+    const relativeX = scrollWidth > 0 ? centerX / scrollWidth : 0.5;
+    const relativeY = scrollHeight > 0 ? centerY / scrollHeight : 0.5;
+
+    // Update zoom
     appState.zoom = Math.max(0.5, Math.min(3.0, appState.zoom + delta));
     document.getElementById('zoomDisplay').innerText = Math.round(appState.zoom * 100) + "%";
+
+    // Re-render with new zoom
     renderMainView();
+
+    // Restore scroll position after render completes
+    setTimeout(() => {
+        const newScrollWidth = mainScroll.scrollWidth;
+        const newScrollHeight = mainScroll.scrollHeight;
+
+        // Calculate new center position
+        const newCenterX = relativeX * newScrollWidth;
+        const newCenterY = relativeY * newScrollHeight;
+
+        // Set scroll to keep center point in same place
+        mainScroll.scrollLeft = newCenterX - clientWidth / 2;
+        mainScroll.scrollTop = newCenterY - clientHeight / 2;
+    }, 50);
 }
 
 function toggleViewMode() {
@@ -1101,7 +1238,15 @@ async function activateSelectionMode(mode) {
 
     const pdfjsDoc = await pdfjsLib.getDocument({ data: await appState.pdfDoc.save() }).promise;
     const page = await pdfjsDoc.getPage(appState.currentPage + 1);
-    const viewport = page.getViewport({ scale: 1.5 });
+
+    // Calculate appropriate scale for mobile
+    let scale = 1.5; // Desktop default
+    if (window.innerWidth < 768) {
+        const unscaledVp = page.getViewport({ scale: 1 });
+        scale = (window.innerWidth - 40) / unscaledVp.width; // Fit width with padding
+    }
+
+    const viewport = page.getViewport({ scale: scale });
 
     bgCanvas.width = viewport.width;
     bgCanvas.height = viewport.height;
@@ -1469,6 +1614,35 @@ Document protegit contra canvis</div>
     // Panel is verified by toggleTool('verify')
 }
 
+function updateSignatureStatus() {
+    const alert = document.getElementById('signatureStatusAlert');
+    if (!alert) return;
+
+    if (appState.isSigned && appState.detectedSignatures.length > 0) {
+        alert.classList.remove('hidden');
+        alert.className = 'mb-3 p-3 rounded-lg border bg-green-50 border-green-200';
+        alert.innerHTML = `
+            <div class="flex items-start gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 text-green-600 mt-0.5 shrink-0"></i>
+                <div>
+                    <div class="font-bold text-green-700 text-sm">Document Signat Digitalment</div>
+                    <div class="text-xs text-green-600 mt-1">
+                        ${appState.detectedSignatures.length} signatura${appState.detectedSignatures.length > 1 ? 'es' : ''} detectada${appState.detectedSignatures.length > 1 ? 'es' : ''}. 
+                        Document protegit contra modificacions.
+                    </div>
+                    <div class="text-xs text-slate-600 mt-2 pt-2 border-t border-green-200">
+                        Pots afegir signatures addicionals utilitzant les eines a continuació.
+                    </div>
+                </div>
+            </div>
+        `;
+        lucide.createIcons();
+    } else {
+        alert.classList.add('hidden');
+    }
+}
+
+
 function checkAndInitAutoFirma() {
     if (typeof window.AutoScript !== 'undefined') initAF();
     else document.getElementById('manualScriptLoader')?.classList.remove('hidden');
@@ -1531,8 +1705,8 @@ function updateUI() {
     saveBtn.classList.toggle('cursor-not-allowed', !hasFile);
 
     if (appState.isSigned) {
-        // Lock modification tools EXCEPT signature (for multi-signing)
-        ['insert', 'text', 'watermark', 'draw'].forEach(t => {
+        // Lock ALL modification tools EXCEPT signature (for multi-signing)
+        ['insert', 'text', 'watermark', 'draw', 'highlight', 'notes', 'layout'].forEach(t => {
             const btn = document.querySelector(`button[onclick="window.app.toggleTool('${t}')"]`);
             if (btn) {
                 btn.disabled = true;
@@ -1541,30 +1715,23 @@ function updateUI() {
             }
         });
 
-        // Disable "Visual Stamp" inside signature tool if panel is open?
-        // We handle this by checking logic or simply disabling the visual stamp button by ID if it exists?
-        // Better to check in toggleTool or UI update.
-        // Let's assume we toggle the specific button state here if possible, but the panel might be hidden.
-        // So we just allow the TOOL to be opened.
+        // Ensure signature button is enabled and highlighted
+        const sigBtn = document.querySelector(`button[onclick="window.app.toggleTool('signature')"]`);
+        if (sigBtn) {
+            sigBtn.disabled = false;
+            sigBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'grayscale');
+            sigBtn.classList.add('border-green-500', 'bg-green-50');
+        }
     } else {
-        // Unlock
-        ['insert', 'text', 'signature', 'watermark', 'draw'].forEach(t => {
+        // Unlock all tools
+        ['insert', 'text', 'signature', 'watermark', 'draw', 'highlight', 'notes', 'layout'].forEach(t => {
             const btn = document.querySelector(`button[onclick="window.app.toggleTool('${t}')"]`);
             if (btn) {
                 btn.disabled = false;
-                btn.classList.remove('opacity-50', 'cursor-not-allowed', 'grayscale');
+                btn.classList.remove('opacity-50', 'cursor-not-allowed', 'grayscale', 'border-green-500', 'bg-green-50');
                 btn.title = "";
             }
         });
-    }
-
-    const verifyBtn = document.getElementById('sidebarVerifyBtn');
-    if (verifyBtn) {
-        if (appState.isSigned || (appState.detectedSignatures && appState.detectedSignatures.length > 0)) {
-            verifyBtn.classList.remove('hidden');
-        } else {
-            verifyBtn.classList.add('hidden');
-        }
     }
 }
 
@@ -1637,10 +1804,10 @@ async function toggleTool(toolName) {
         return showAlert("El document està signat. L'edició està bloquejada.");
     }
 
-    // Special logic for verify
-    if (toolName === 'verify') {
+    // Special logic for verify (now integrated into signature)
+    if (toolName === 'signature') {
         await detectSignatures();
-        showSignaturesInPanel();
+        updateSignatureStatus();
     }
 
     appState.activeTool = toolName;
@@ -1656,9 +1823,9 @@ async function toggleTool(toolName) {
         'signature': 'Signatura',
         'watermark': 'Marca d\'Aigua',
         'draw': 'Dibuixar',
-        'verify': 'Verificar',
         'notes': 'Notes',
-        'highlight': 'MARCADOR'
+        'highlight': 'MARCADOR',
+        'layout': 'Capçalera/Peu'
     };
     const nameSpan = document.getElementById('activeToolName');
     if (nameSpan) nameSpan.innerText = toolNamesMap[toolName] || 'Eina';
@@ -2132,11 +2299,14 @@ async function handleHighlightSelection() {
     const page = appState.pdfDoc.getPage(pageIndex);
     const { width: pdfW, height: pdfH } = page.getSize();
 
-    // Use actual rendered dimensions from getBoundingClientRect
-    const layerW = layerRect.width;
-    const layerH = layerRect.height;
-    const scaleX = pdfW / layerW;
-    const scaleY = pdfH / layerH;
+    // Use the stored visual scale from the text layer dataset
+    // This is the actual scale used when rendering the text layer
+    const visualScale = parseFloat(textLayer.dataset.visualScale) || 1.0;
+    console.log('[Highlight] Visual scale from dataset:', visualScale);
+
+    // Calculate scale factors: PDF coordinates = screen coordinates / visualScale
+    const scaleX = 1 / visualScale;
+    const scaleY = 1 / visualScale;
 
     const rects = Array.from(range.getClientRects());
 
@@ -2160,19 +2330,22 @@ async function handleHighlightSelection() {
         const quadPoints = [];
 
         rects.forEach(r => {
+            // Get position relative to text layer
             const relX = (r.left - layerRect.left);
             const relY = (r.top - layerRect.top);
 
-            // PDF space (Y-axis inverted)
+            // Convert screen coordinates to PDF coordinates using the visual scale
             const pdfX = relX * scaleX;
             const pdfWidth = r.width * scaleX;
 
             // Reduce height by 20% to better match actual text and prevent overlap
             const adjustedHeight = r.height * 0.8;
             const pdfHeight = adjustedHeight * scaleY;
+
+            // Convert Y coordinate (PDF Y-axis is inverted, origin at bottom-left)
             const pdfY = pdfH - (relY * scaleY + adjustedHeight * scaleY);
 
-            // Store QuadPoints for annotation
+            // Store QuadPoints for annotation (4 corners of the rectangle)
             const x1 = pdfX;
             const y1 = pdfY + pdfHeight;
             const x2 = pdfX + pdfWidth;
@@ -2512,4 +2685,261 @@ async function deleteAnnotation() {
     } finally {
         hideLoader();
     }
+}
+
+// --- SEARCH FUNCTIONALITY ---
+
+function toggleSearch() {
+    const searchBar = document.getElementById('searchBar');
+    const searchInput = document.getElementById('searchInput');
+
+    if (searchBar.classList.contains('hidden')) {
+        // Show search bar
+        searchBar.classList.remove('hidden');
+        searchBar.classList.add('flex');
+        searchInput.focus();
+        appState.searchState.isActive = true;
+    } else {
+        // Hide and clear search
+        closeSearch();
+    }
+}
+
+function closeSearch() {
+    const searchBar = document.getElementById('searchBar');
+    const searchInput = document.getElementById('searchInput');
+
+    searchBar.classList.add('hidden');
+    searchBar.classList.remove('flex');
+    searchInput.value = '';
+
+    // Clear search state and highlights
+    appState.searchState.query = '';
+    appState.searchState.matches = [];
+    appState.searchState.currentMatchIndex = -1;
+    appState.searchState.isActive = false;
+
+    // Remove all search highlights
+    clearSearchHighlights();
+    updateSearchCounter();
+}
+
+async function performSearch(query) {
+    if (!appState.pdfDoc || !query || query.trim().length === 0) {
+        appState.searchState.matches = [];
+        appState.searchState.currentMatchIndex = -1;
+        clearSearchHighlights();
+        updateSearchCounter();
+        return;
+    }
+
+    appState.searchState.query = query.toLowerCase();
+    appState.searchState.matches = [];
+
+    try {
+        const pdfjsDoc = await pdfjsLib.getDocument({ data: await appState.pdfDoc.save() }).promise;
+        const numPages = pdfjsDoc.numPages;
+
+        // Search through all pages
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            const page = await pdfjsDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const viewport = page.getViewport({ scale: 1 });
+
+            // Build full text and track positions
+            let fullText = '';
+            const items = textContent.items;
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                fullText += item.str;
+            }
+
+            // Find all matches in this page
+            const lowerText = fullText.toLowerCase();
+            let startIndex = 0;
+
+            while ((startIndex = lowerText.indexOf(appState.searchState.query, startIndex)) !== -1) {
+                // Find which text items contain this match
+                const matchRects = [];
+                let charCount = 0;
+
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    const itemStart = charCount;
+                    const itemEnd = charCount + item.str.length;
+
+                    // Check if this item overlaps with the match
+                    if (itemEnd > startIndex && itemStart < startIndex + appState.searchState.query.length) {
+                        const transform = item.transform;
+                        const x = transform[4];
+                        const y = transform[5];
+                        const width = item.width;
+                        const height = item.height;
+
+                        matchRects.push({
+                            left: x,
+                            top: viewport.height - y - height,
+                            width: width,
+                            height: height
+                        });
+                    }
+
+                    charCount += item.str.length;
+                }
+
+                if (matchRects.length > 0) {
+                    appState.searchState.matches.push({
+                        pageIndex: pageNum - 1,
+                        rects: matchRects,
+                        text: fullText.substr(startIndex, appState.searchState.query.length)
+                    });
+                }
+
+                startIndex += appState.searchState.query.length;
+            }
+        }
+
+        // Update UI
+        updateSearchCounter();
+
+        // Highlight all matches and navigate to first
+        if (appState.searchState.matches.length > 0) {
+            appState.searchState.currentMatchIndex = 0;
+            renderSearchHighlights();
+            navigateToCurrentMatch();
+        } else {
+            clearSearchHighlights();
+        }
+
+    } catch (e) {
+        console.error('Search error:', e);
+    }
+}
+
+function searchNext() {
+    if (appState.searchState.matches.length === 0) return;
+
+    appState.searchState.currentMatchIndex =
+        (appState.searchState.currentMatchIndex + 1) % appState.searchState.matches.length;
+
+    updateSearchCounter();
+    renderSearchHighlights();
+    navigateToCurrentMatch();
+}
+
+function searchPrevious() {
+    if (appState.searchState.matches.length === 0) return;
+
+    appState.searchState.currentMatchIndex =
+        (appState.searchState.currentMatchIndex - 1 + appState.searchState.matches.length) % appState.searchState.matches.length;
+
+    updateSearchCounter();
+    renderSearchHighlights();
+    navigateToCurrentMatch();
+}
+
+function updateSearchCounter() {
+    const counter = document.getElementById('searchCounter');
+    const total = appState.searchState.matches.length;
+    const current = appState.searchState.currentMatchIndex + 1;
+
+    if (total === 0) {
+        counter.textContent = '0/0';
+    } else {
+        counter.textContent = `${current}/${total}`;
+    }
+}
+
+function navigateToCurrentMatch() {
+    if (appState.searchState.currentMatchIndex < 0 ||
+        appState.searchState.currentMatchIndex >= appState.searchState.matches.length) {
+        return;
+    }
+
+    const match = appState.searchState.matches[appState.searchState.currentMatchIndex];
+    const targetPage = match.pageIndex;
+
+    // Navigate to page if needed
+    if (appState.viewMode === 'single' || appState.viewMode === 'two-page') {
+        if (appState.currentPage !== targetPage) {
+            appState.currentPage = targetPage;
+            renderMainView();
+        }
+    }
+
+    // Scroll to the match
+    setTimeout(() => {
+        const pageContainers = document.querySelectorAll('.page-container');
+        const targetContainer = pageContainers[targetPage];
+
+        if (targetContainer) {
+            const highlight = targetContainer.querySelector('.search-highlight.active');
+            if (highlight) {
+                highlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                targetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, 100);
+}
+
+function renderSearchHighlights() {
+    // Remove existing highlights
+    clearSearchHighlights();
+
+    if (appState.searchState.matches.length === 0) return;
+
+    const pageContainers = document.querySelectorAll('.page-container');
+
+    appState.searchState.matches.forEach((match, matchIndex) => {
+        const container = pageContainers[match.pageIndex];
+        if (!container) return;
+
+        const canvas = container.querySelector('canvas');
+        if (!canvas) return;
+
+        // Get the text layer to determine the scale
+        const textLayer = container.querySelector('.textLayer');
+        const visualScale = textLayer ? parseFloat(textLayer.dataset.visualScale || 1) : 1;
+
+        // Create highlight overlay if it doesn't exist
+        let overlay = container.querySelector('.search-highlight-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'search-highlight-overlay';
+            overlay.style.position = 'absolute';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.zIndex = '15';
+            container.appendChild(overlay);
+        }
+
+        // Add highlight rectangles for this match
+        match.rects.forEach(rect => {
+            const highlightDiv = document.createElement('div');
+            highlightDiv.className = 'search-highlight';
+
+            // Apply current match styling
+            if (matchIndex === appState.searchState.currentMatchIndex) {
+                highlightDiv.classList.add('active');
+            }
+
+            // Position and size the highlight
+            highlightDiv.style.left = (rect.left * visualScale) + 'px';
+            highlightDiv.style.top = (rect.top * visualScale) + 'px';
+            highlightDiv.style.width = (rect.width * visualScale) + 'px';
+            highlightDiv.style.height = (rect.height * visualScale) + 'px';
+
+            overlay.appendChild(highlightDiv);
+        });
+    });
+}
+
+function clearSearchHighlights() {
+    const overlays = document.querySelectorAll('.search-highlight-overlay');
+    overlays.forEach(overlay => overlay.remove());
 }
