@@ -3117,7 +3117,8 @@ async function loadPdfFromDrive(fileId) {
     try {
         const response = await gapi.client.drive.files.get({
             fileId: fileId,
-            fields: 'id, name, mimeType, parents'
+            fields: 'id, name, mimeType, parents',
+            supportsAllDrives: true
         });
 
         const file = response.result;
@@ -3200,7 +3201,7 @@ async function saveToDrive(overwrite = true) {
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', blob);
 
-            const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${appState.driveFileId}?uploadType=multipart`, {
+            const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${appState.driveFileId}?uploadType=multipart&supportsAllDrives=true`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': `Bearer ${gapi.client.getToken().access_token}`
@@ -3225,7 +3226,7 @@ async function saveToDrive(overwrite = true) {
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', blob);
 
-            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${gapi.client.getToken().access_token}`
@@ -3261,9 +3262,14 @@ function showDrivePicker(mode = 'open') {
     const token = gapi.client.getToken().access_token;
     const view = new google.picker.View(mode === 'signature' ? google.picker.ViewId.DOCS_IMAGES : google.picker.ViewId.PDFS);
 
+    // Extract project number from client ID if it's in the standard format
+    const appId = GDRIVE_CONFIG.CLIENT_ID.split('-')[0];
+
     const picker = new google.picker.PickerBuilder()
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
-        .setAppId(GDRIVE_CONFIG.CLIENT_ID)
+        .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+        .setDeveloperKey(GDRIVE_CONFIG.API_KEY)
+        .setAppId(appId)
         .setOAuthToken(token)
         .addView(view)
         .setCallback((data) => handlePickerSelection(data, mode))
@@ -3289,7 +3295,7 @@ async function handlePickerSelection(data, mode) {
 async function loadPdfForInsertFromDrive(fileId) {
     showLoader("Carregant PDF per insertar...");
     try {
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`, {
             headers: {
                 'Authorization': `Bearer ${gapi.client.getToken().access_token}`
             }
@@ -3298,7 +3304,7 @@ async function loadPdfForInsertFromDrive(fileId) {
         const fileContent = new Uint8Array(arrayBuffer);
 
         // Mock a File object for processMerge
-        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name' })).result.name;
+        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name', supportsAllDrives: true })).result.name;
         const fakeFile = new Blob([fileContent], { type: 'application/pdf' });
         fakeFile.name = fileName;
 
@@ -3314,7 +3320,7 @@ async function loadPdfForInsertFromDrive(fileId) {
 async function loadImageForSignatureFromDrive(fileId) {
     showLoader("Carregant imatge per rúbrica...");
     try {
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`, {
             headers: {
                 'Authorization': `Bearer ${gapi.client.getToken().access_token}`
             }
@@ -3322,7 +3328,7 @@ async function loadImageForSignatureFromDrive(fileId) {
         const blob = await response.blob();
         appState.uploadedSigFile = blob;
 
-        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name' })).result.name;
+        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name', supportsAllDrives: true })).result.name;
         appState.uploadedSigFile.name = fileName;
         document.getElementById('sigFileName').innerText = fileName;
         document.getElementById('sigFileName').classList.add('text-indigo-600', 'font-medium');
