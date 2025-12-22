@@ -2992,7 +2992,7 @@ async function initDriveApi() {
         // Load the API client and picker library
         await new Promise(resolve => gapi.load('client:picker', resolve));
         await gapi.client.init({
-            apiKey: GDRIVE_CONFIG.API_KEY,
+            //apiKey: GDRIVE_CONFIG.API_KEY,
             discoveryDocs: GDRIVE_CONFIG.DISCOVERY_DOCS,
         });
 
@@ -3268,7 +3268,6 @@ function showDrivePicker(mode = 'open') {
     const picker = new google.picker.PickerBuilder()
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
         .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
-        .setDeveloperKey(GDRIVE_CONFIG.API_KEY)
         .setAppId(appId)
         .setOAuthToken(token)
         .addView(view)
