@@ -744,8 +744,17 @@ function togglePageSelection(pageIndex, forceState = null) {
 function handleThumbnailClick(e, index) {
     if (appState.isSigned) { // Si està firmat, només navegació simple
         appState.currentPage = index;
-        renderMainView();
-        renderMainView();
+        if (appState.viewMode === 'continuous') {
+            const containers = document.querySelectorAll('#pagesWrapper .page-container');
+            if (containers[index]) {
+                appState.isManualScrolling = true;
+                containers[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setTimeout(() => { appState.isManualScrolling = false; }, 800);
+            }
+            updatePageNumberDisplay();
+        } else {
+            renderMainView();
+        }
         updateSidebarUI();
         return;
     }
@@ -758,17 +767,25 @@ function handleThumbnailClick(e, index) {
         const end = Math.max(appState.lastClickedIndex, index);
         appState.selectedPages.clear();
         for (let i = start; i <= end; i++) appState.selectedPages.add(i);
-        for (let i = start; i <= end; i++) appState.selectedPages.add(i);
         updateSidebarUI();
     } else {
-        // Validation: If clicking an already selected page without modifiers, what do we do?
         // Standard Explorer: Select single (clear others) and Navigate.
         appState.currentPage = index;
-        renderMainView();
         appState.selectedPages.clear();
         appState.selectedPages.add(index);
         appState.lastClickedIndex = index;
-        appState.lastClickedIndex = index;
+
+        if (appState.viewMode === 'continuous') {
+            const containers = document.querySelectorAll('#pagesWrapper .page-container');
+            if (containers[index]) {
+                appState.isManualScrolling = true;
+                containers[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                setTimeout(() => { appState.isManualScrolling = false; }, 800);
+            }
+            updatePageNumberDisplay();
+        } else {
+            renderMainView();
+        }
         updateSidebarUI();
     }
 }
@@ -2972,8 +2989,8 @@ function clearSearchHighlights() {
 
 async function initDriveApi() {
     try {
-        // Load the API client and auth2 library
-        await new Promise(resolve => gapi.load('client', resolve));
+        // Load the API client and picker library
+        await new Promise(resolve => gapi.load('client:picker', resolve));
         await gapi.client.init({
             apiKey: GDRIVE_CONFIG.API_KEY,
             discoveryDocs: GDRIVE_CONFIG.DISCOVERY_DOCS,
@@ -3008,14 +3025,26 @@ function updateDriveUI() {
     const driveMenu = document.getElementById('driveSaveMenu');
     const saveBtn = document.getElementById('saveBtn');
 
+    const openDriveBtn = document.getElementById('openDriveBtn');
+    const insertDriveBtn = document.getElementById('insertDriveBtn');
+    const sigDriveBtn = document.getElementById('sigDriveBtn');
+
     if (appState.isGoogleAuth) {
         authBtn.classList.add('hidden');
         driveMenu.classList.remove('hidden');
         saveBtn.classList.add('hidden'); // Hide local save if drive is connected?
+
+        if (openDriveBtn) openDriveBtn.classList.remove('hidden');
+        if (insertDriveBtn) insertDriveBtn.classList.remove('hidden');
+        if (sigDriveBtn) sigDriveBtn.classList.remove('hidden');
     } else {
         authBtn.classList.remove('hidden');
         driveMenu.classList.add('hidden');
         saveBtn.classList.remove('hidden');
+
+        if (openDriveBtn) openDriveBtn.classList.add('hidden');
+        if (insertDriveBtn) insertDriveBtn.classList.add('hidden');
+        if (sigDriveBtn) sigDriveBtn.classList.add('hidden');
     }
 }
 
@@ -3220,3 +3249,102 @@ async function saveToDrive(overwrite = true) {
         hideLoader();
     }
 }
+
+// --- GOOGLE PICKER ---
+
+function showDrivePicker(mode = 'open') {
+    if (!appState.isGoogleAuth) {
+        handleAuthClick();
+        return;
+    }
+
+    const token = gapi.client.getToken().access_token;
+    const view = new google.picker.View(mode === 'signature' ? google.picker.ViewId.DOCS_IMAGES : google.picker.ViewId.PDFS);
+
+    const picker = new google.picker.PickerBuilder()
+        .enableFeature(google.picker.Feature.NAV_HIDDEN)
+        .setAppId(GDRIVE_CONFIG.CLIENT_ID)
+        .setOAuthToken(token)
+        .addView(view)
+        .setCallback((data) => handlePickerSelection(data, mode))
+        .build();
+    picker.setVisible(true);
+}
+
+async function handlePickerSelection(data, mode) {
+    if (data.action === google.picker.Action.PICKED) {
+        const file = data.docs[0];
+        const fileId = file.id;
+
+        if (mode === 'open') {
+            loadPdfFromDrive(fileId);
+        } else if (mode === 'insert') {
+            loadPdfForInsertFromDrive(fileId);
+        } else if (mode === 'signature') {
+            loadImageForSignatureFromDrive(fileId);
+        }
+    }
+}
+
+async function loadPdfForInsertFromDrive(fileId) {
+    showLoader("Carregant PDF per insertar...");
+    try {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: {
+                'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+            }
+        });
+        const arrayBuffer = await response.arrayBuffer();
+        const fileContent = new Uint8Array(arrayBuffer);
+
+        // Mock a File object for processMerge
+        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name' })).result.name;
+        const fakeFile = new Blob([fileContent], { type: 'application/pdf' });
+        fakeFile.name = fileName;
+
+        processMerge(fakeFile);
+    } catch (e) {
+        console.error("Load for insert failed", e);
+        showAlert("Error carregant PDF de Drive: " + e.message);
+    } finally {
+        hideLoader();
+    }
+}
+
+async function loadImageForSignatureFromDrive(fileId) {
+    showLoader("Carregant imatge per rúbrica...");
+    try {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: {
+                'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+            }
+        });
+        const blob = await response.blob();
+        appState.uploadedSigFile = blob;
+
+        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name' })).result.name;
+        appState.uploadedSigFile.name = fileName;
+        document.getElementById('sigFileName').innerText = fileName;
+        document.getElementById('sigFileName').classList.add('text-indigo-600', 'font-medium');
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const preview = document.getElementById('sigPreview');
+            if (preview) {
+                preview.src = ev.target.result;
+                preview.classList.remove('hidden');
+            }
+        };
+        reader.readAsDataURL(blob);
+    } catch (e) {
+        console.error("Load for signature failed", e);
+        showAlert("Error carregant imatge de Drive: " + e.message);
+    } finally {
+        hideLoader();
+    }
+}
+
+// Export functions
+Object.assign(window.app, {
+    showDrivePicker
+});

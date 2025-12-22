@@ -7,7 +7,7 @@
     <!-- Mobile optimized title -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Visor PDF Pro v3.1</title>
+    <title>Visor PDF Pro</title>
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -154,10 +154,17 @@
             <!-- Verify/Sign removed -->
 
             <input type="file" id="mainPdfInput" accept="application/pdf" class="hidden">
-            <button onclick="document.getElementById('mainPdfInput').click()"
-                class="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white transition font-medium text-sm">
-                <i data-lucide="folder-open" class="w-4 h-4"></i> <span class="hidden sm:inline">Obrir</span>
-            </button>
+            <div class="flex items-center bg-slate-700/30 rounded-md overflow-hidden">
+                <button onclick="document.getElementById('mainPdfInput').click()"
+                    class="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-slate-200 hover:bg-slate-700 hover:text-white transition font-medium text-sm border-r border-slate-700/50">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i> <span class="hidden sm:inline">Obrir</span>
+                </button>
+                <button id="openDriveBtn" onclick="window.app.showDrivePicker('open')"
+                    class="hidden flex items-center px-2 py-1.5 text-slate-200 hover:bg-slate-700 hover:text-white transition"
+                    title="Obrir de Google Drive">
+                    <img src="gdicon.png" class="w-4 h-4" alt="Drive">
+                </button>
+            </div>
 
             <button onclick="window.app.downloadPdf()" id="saveBtn"
                 class="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-md text-slate-200 hover:bg-slate-700 hover:text-white transition font-medium text-sm opacity-50 cursor-not-allowed"
@@ -271,7 +278,7 @@
 
         <!-- RIGHT SIDEBAR -->
         <aside id="rightSidebar"
-            class="bg-slate-100 border-l border-slate-300 w-16 flex flex-col items-center py-4 gap-4 z-40 shrink-0 shadow-lg transition-all duration-300 absolute right-0 h-full md:relative md:h-auto translate-x-full md:translate-x-0">
+            class="bg-slate-100 border-l border-slate-300 w-16 flex flex-col items-center py-4 gap-4 z-20 shrink-0 shadow-lg transition-all duration-300 absolute right-0 h-full md:relative md:h-auto translate-x-full md:translate-x-0">
             <div id="sidebarIcons" class="flex flex-col items-center gap-4 w-full">
                 <button onclick="window.app.toggleTool('insert')" id="insertBtn"
                     class="p-3 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-600 rounded-lg shadow-sm transition group relative w-12 h-12 flex items-center justify-center"
@@ -376,8 +383,15 @@
                             </label>
                         </div>
                     </div>
-                    <button onclick="window.app.triggerMerge()" class="btn-primary w-full text-sm">Seleccionar
-                        Fitxer</button>
+                    <div class="flex gap-2">
+                        <button onclick="window.app.triggerMerge()" class="btn-primary flex-1 text-sm">Seleccionar
+                            Fitxer</button>
+                        <button id="insertDriveBtn" onclick="window.app.showDrivePicker('insert')"
+                            class="hidden bg-white border border-slate-200 p-2 rounded-md hover:bg-slate-100 transition shadow-sm"
+                            title="Des de Google Drive">
+                            <img src="gdicon.png" class="w-5 h-5" alt="Drive">
+                        </button>
+                    </div>
                 </div>
 
                 <!-- TEXT TOOL -->
@@ -424,11 +438,18 @@
                     <div class="mb-2">
                         <label class="label-tiny">Imatge (Rúbrica)</label>
                         <input type="file" id="signatureFileInput" accept="image/png, image/jpeg" class="hidden">
-                        <button onclick="document.getElementById('signatureFileInput').click()"
-                            class="w-full border p-2 rounded text-left flex items-center gap-2 text-xs hover:bg-white truncate">
-                            <i data-lucide="image" class="w-4 h-4"></i> <span id="sigFileName"
-                                class="truncate">Seleccionar...</span>
-                        </button>
+                        <div class="flex gap-1">
+                            <button onclick="document.getElementById('signatureFileInput').click()"
+                                class="flex-1 border p-2 rounded text-left flex items-center gap-2 text-xs hover:bg-white truncate">
+                                <i data-lucide="image" class="w-4 h-4"></i> <span id="sigFileName"
+                                    class="truncate">Seleccionar...</span>
+                            </button>
+                            <button id="sigDriveBtn" onclick="window.app.showDrivePicker('signature')"
+                                class="hidden bg-white border border-slate-200 p-2 rounded hover:bg-slate-100 transition shadow-sm"
+                                title="Des de Google Drive">
+                                <img src="gdicon.png" class="w-4 h-4" alt="Drive">
+                            </button>
+                        </div>
                         <img id="sigPreview"
                             class="hidden mt-2 w-full h-auto max-h-32 object-contain border rounded bg-white p-1" />
                     </div>
