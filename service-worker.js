@@ -1,4 +1,4 @@
-const CACHE_NAME = 'visor-pdf-pro-v4.1';
+const CACHE_NAME = 'visor-pdf-pro-v4.2';
 
 const ASSETS_TO_CACHE = [
   './editor.html',

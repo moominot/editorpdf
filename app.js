@@ -2990,20 +2990,18 @@ function clearSearchHighlights() {
 
 async function initDriveApi() {
     try {
-        // Load the API client and picker library
         await new Promise(resolve => gapi.load('client:picker', resolve));
         await gapi.client.init({
-            //apiKey: GDRIVE_CONFIG.API_KEY,
             discoveryDocs: GDRIVE_CONFIG.DISCOVERY_DOCS,
         });
 
         appState.tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GDRIVE_CONFIG.CLIENT_ID,
             scope: GDRIVE_CONFIG.SCOPES,
-            callback: '', // defined later
+            callback: handleAuthResponse, // Central callback
         });
 
-        // Check if we have a hash token (redirected from auth) or session
+        // Check for persisted token
         const token = localStorage.getItem('gdrive_token');
         if (token) {
             const tokenData = JSON.parse(token);
@@ -3014,10 +3012,29 @@ async function initDriveApi() {
             }
         }
 
-        // Handle URL parameters (Open With)
         handleDriveState();
     } catch (e) {
         console.error("GAPI Init Error", e);
+    }
+}
+
+async function handleAuthResponse(resp) {
+    if (resp.error !== undefined) {
+        console.error("Auth Error:", resp);
+        return;
+    }
+
+    gapi.client.setToken(resp);
+    appState.isGoogleAuth = true;
+
+    // Calculate expiration and save
+    resp.expires_at = Date.now() + (resp.expires_in * 1000);
+    localStorage.setItem('gdrive_token', JSON.stringify(resp));
+
+    updateDriveUI();
+
+    if (appState.driveFileId) {
+        loadPdfFromDrive(appState.driveFileId);
     }
 }
 
@@ -3050,32 +3067,27 @@ function updateDriveUI() {
 }
 
 function handleAuthClick() {
-    appState.tokenClient.callback = async (resp) => {
-        if (resp.error !== undefined) throw (resp);
-
-        // IMPORTANT: Set the token in gapi.client so subsequent calls work
-        gapi.client.setToken(resp);
-
-        appState.isGoogleAuth = true;
-        // Save token
-        resp.expires_at = Date.now() + (resp.expires_in * 1000);
-        localStorage.setItem('gdrive_token', JSON.stringify(resp));
-        updateDriveUI();
-
-        // If we were waiting for a file load, do it now
-        if (appState.driveFileId) {
-            loadPdfFromDrive(appState.driveFileId);
-        }
-    };
-
-    if (gapi.client.getToken() === null) {
-        // Prompt the user to select a Google Account and ask for consent to share their data
-        // when establishing a new session.
-        appState.tokenClient.requestAccessToken({ prompt: 'consent' });
+    // If we have a token but it's expired or we need a fresh one, 
+    // requesting with prompt: '' will try to get it silently if possible, 
+    // or show account chooser without full consent screen.
+    const token = gapi.client.getToken();
+    if (token === null) {
+        appState.tokenClient.requestAccessToken({ prompt: 'select_account' });
     } else {
-        // Skip display of account chooser and consent dialog for an existing session.
         appState.tokenClient.requestAccessToken({ prompt: '' });
     }
+}
+
+function logoutDrive() {
+    const token = gapi.client.getToken();
+    if (token !== null) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken(null);
+    }
+    localStorage.removeItem('gdrive_token');
+    appState.isGoogleAuth = false;
+    updateDriveUI();
+    showAlert("Sessió de Google Drive tancada");
 }
 
 function handleDriveState() {
