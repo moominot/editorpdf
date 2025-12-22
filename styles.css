@@ -10,3 +10,103 @@
     overflow: hidden !important;
     border: none !important;
 }
+
+.note-marker {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    background: #fffd8d;
+    border: 1.5px solid #d4c100;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #857900;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.note-marker:hover {
+    transform: scale(1.1);
+    background: #fffb00;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.note-marker::after {
+    content: attr(data-text);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    max-width: 250px;
+    width: max-content;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+    pointer-events: none;
+    backdrop-filter: blur(2px);
+    text-align: left;
+    line-height: 1.4;
+}
+
+.note-marker:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* PDF.js Text Layer */
+.textLayer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    opacity: 1;
+    /* Keep layer visible for selection */
+    line-height: 1;
+    pointer-events: auto;
+    z-index: 10;
+    /* Above canvas */
+}
+
+.textLayer>span {
+    color: transparent;
+    /* Invisible text */
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+}
+
+.textLayer ::selection {
+    background: rgba(100, 150, 255, 0.3);
+    /* Visible selection highlight */
+    color: transparent;
+    /* Keep text transparent even when selected */
+}
+
+.highlight-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 6;
+}
+
+.highlight-rect {
+    position: absolute;
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+}
