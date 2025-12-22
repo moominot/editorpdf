@@ -3022,6 +3022,10 @@ function updateDriveUI() {
 function handleAuthClick() {
     appState.tokenClient.callback = async (resp) => {
         if (resp.error !== undefined) throw (resp);
+
+        // IMPORTANT: Set the token in gapi.client so subsequent calls work
+        gapi.client.setToken(resp);
+
         appState.isGoogleAuth = true;
         // Save token
         resp.expires_at = Date.now() + (resp.expires_in * 1000);
@@ -3046,21 +3050,35 @@ function handleAuthClick() {
 
 function handleDriveState() {
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Suport per a ?id=... (test manual)
+    const directId = urlParams.get('id');
+    if (directId) {
+        appState.driveFileId = directId;
+    }
+
+    // Suport per a ?state=... (Google Drive "Open With")
     const stateStr = urlParams.get('state');
     if (stateStr) {
         try {
             const state = JSON.parse(stateStr);
-            if (state.action === 'open' && state.ids && state.ids.length > 0) {
+            if (state.ids && state.ids.length > 0) {
                 appState.driveFileId = state.ids[0];
-                if (appState.isGoogleAuth) {
-                    loadPdfFromDrive(appState.driveFileId);
-                } else {
-                    showAlert("Connecta't a Google Drive per obrir el fitxer");
-                    document.getElementById('authBtn').classList.remove('hidden');
-                }
+            } else if (state.id) {
+                appState.driveFileId = state.id;
             }
         } catch (e) {
             console.error("Error parsing state", e);
+        }
+    }
+
+    if (appState.driveFileId) {
+        if (appState.isGoogleAuth) {
+            loadPdfFromDrive(appState.driveFileId);
+        } else {
+            // No alert immediately, just show the login button prominently
+            document.getElementById('authBtn').classList.remove('hidden');
+            // document.getElementById('authBtn').classList.add('ring-4', 'ring-blue-400', 'animate-pulse');
         }
     }
 }
@@ -3103,7 +3121,11 @@ async function loadPdfFromDrive(fileId) {
         showAlert("Fitxer carregat de Drive");
     } catch (e) {
         console.error("Load from Drive failed", e);
-        showAlert("Error carregant de Drive: " + (e.result?.error?.message || e.message));
+        let msg = (e.result?.error?.message || e.message);
+        if (msg.includes("File not found") || e.status === 404) {
+            msg += ". Assegura't de fer 'Obrir amb' des de Google Drive per donar permís a l'aplicació.";
+        }
+        showAlert("Error carregant de Drive: " + msg);
     } finally {
         hideLoader();
     }
