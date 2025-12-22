@@ -55,6 +55,7 @@ const appState = {
     // Google Drive Integration
     driveFileId: null,
     driveFolderId: null,
+    targetFolderId: null,
     isGoogleAuth: false,
     tokenClient: null,
 
@@ -3166,7 +3167,7 @@ async function saveToDrive(overwrite = true) {
     if (!appState.pdfDoc) return;
 
     document.getElementById('driveOptions').classList.add('hidden');
-    showLoader(overwrite ? "Sobreusant fitxer a Drive..." : "Desant còpia a Drive...");
+    showLoader(overwrite ? "Fitxer actualitzat a Drive..." : "Desant nou fitxer a Drive...");
 
     try {
         // Apply form values and bake notes
@@ -3190,8 +3191,6 @@ async function saveToDrive(overwrite = true) {
 
         if (overwrite && appState.driveFileId) {
             // Update existing file
-            // Drive API v3 update with media requires a multipart upload or two requests
-            // Simplest is to use the upload URI
             const metadata = {
                 name: appState.fileName,
                 mimeType: 'application/pdf'
@@ -3212,14 +3211,32 @@ async function saveToDrive(overwrite = true) {
             if (!resp.ok) throw new Error("Upload failed");
             showAlert("Fitxer actualitzat a Google Drive");
         } else {
-            // Create new file
-            const name = overwrite ? appState.fileName : (await window.app.askPrompt("Nom de la còpia", "Copia de " + appState.fileName) || "Copia de " + appState.fileName);
-            if (!name) return hideLoader();
+            // Create new file or Copy
+            const defaultName = overwrite ? appState.fileName : "Copia de " + appState.fileName;
+            let name = defaultName;
+
+            if (!overwrite) {
+                const promptResult = await window.app.askPrompt("Nom de la còpia", defaultName);
+                if (promptResult === null) return hideLoader(); // User cancelled
+                name = promptResult || defaultName;
+            }
+
+            // If it's a copy (overwrite=false), we always show the folder picker to let user choose destination
+            // If it's a new upload (no driveFileId), we also show the folder picker
+            if (!overwrite || !appState.driveFileId) {
+                hideLoader();
+                appState.pendingSave = { overwrite, name, blob };
+                // If we already have a folder (because we opened from Drive), use it as initial view
+                showDrivePicker('folder', appState.driveFolderId);
+                return;
+            }
+
+            const folderId = appState.targetFolderId || appState.driveFolderId;
 
             const metadata = {
                 name: name,
                 mimeType: 'application/pdf',
-                parents: appState.driveFolderId ? [appState.driveFolderId] : []
+                parents: folderId ? [folderId] : []
             };
 
             const form = new FormData();
@@ -3236,11 +3253,16 @@ async function saveToDrive(overwrite = true) {
 
             if (!resp.ok) throw new Error("Create failed");
             const newFile = await resp.json();
+
+            // If it was a new upload or we want to switch to the copy
             if (!overwrite) {
                 appState.driveFileId = newFile.id;
                 appState.fileName = newFile.name;
+                appState.driveFolderId = folderId;
                 document.getElementById('docTitle').innerText = name;
             }
+
+            appState.targetFolderId = null; // Reset
             showAlert("Nou fitxer creat a Google Drive");
         }
     } catch (e) {
@@ -3253,17 +3275,34 @@ async function saveToDrive(overwrite = true) {
 
 // --- GOOGLE PICKER ---
 
-function showDrivePicker(mode = 'open') {
+function showDrivePicker(mode = 'open', parentId = null) {
     if (!appState.isGoogleAuth) {
         handleAuthClick();
         return;
     }
 
     const token = gapi.client.getToken().access_token;
-    const view = new google.picker.View(mode === 'signature' ? google.picker.ViewId.DOCS_IMAGES : google.picker.ViewId.PDFS);
-
-    // Extract project number from client ID if it's in the standard format
     const appId = GDRIVE_CONFIG.CLIENT_ID.split('-')[0];
+
+    let view;
+    if (mode === 'folder') {
+        view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+        view.setSelectableMimeTypes('application/vnd.google-apps.folder');
+    } else if (mode === 'signature') {
+        view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES);
+    } else {
+        view = new google.picker.DocsView(google.picker.ViewId.PDFS);
+        view.setMimeTypes('application/pdf');
+    }
+
+    if (parentId) {
+        view.setParent(parentId);
+    }
+
+    // Enable folder navigation for file picking modes
+    if (mode !== 'folder') {
+        view.setIncludeFolders(true);
+    }
 
     const picker = new google.picker.PickerBuilder()
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
@@ -3271,6 +3310,7 @@ function showDrivePicker(mode = 'open') {
         .setAppId(appId)
         .setOAuthToken(token)
         .addView(view)
+        .setTitle(mode === 'folder' ? 'Selecciona Carpeta de Destí' : 'Selecciona Fitxer')
         .setCallback((data) => handlePickerSelection(data, mode))
         .build();
     picker.setVisible(true);
@@ -3287,7 +3327,61 @@ async function handlePickerSelection(data, mode) {
             loadPdfForInsertFromDrive(fileId);
         } else if (mode === 'signature') {
             loadImageForSignatureFromDrive(fileId);
+        } else if (mode === 'folder') {
+            appState.targetFolderId = fileId;
+            if (appState.pendingSave) {
+                const { overwrite, name, blob } = appState.pendingSave;
+                appState.pendingSave = null;
+                // Re-trigger save with the now-set targetFolderId
+                // We bypass showLoader because we might need to prompt again or just use current data
+                executeCreationSave(name, blob, overwrite);
+            }
         }
+    } else if (data.action === google.picker.Action.CANCEL) {
+        appState.pendingSave = null;
+        appState.targetFolderId = null;
+    }
+}
+
+async function executeCreationSave(name, blob, overwrite) {
+    showLoader("Desant a Drive...");
+    try {
+        const folderId = appState.targetFolderId || appState.driveFolderId;
+        const metadata = {
+            name: name,
+            mimeType: 'application/pdf',
+            parents: folderId ? [folderId] : []
+        };
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', blob);
+
+        const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+            },
+            body: form
+        });
+
+        if (!resp.ok) throw new Error("Create failed");
+        const newFile = await resp.json();
+
+        if (!overwrite) {
+            appState.driveFileId = newFile.id;
+            appState.fileName = newFile.name;
+            appState.driveFolderId = folderId;
+            document.getElementById('docTitle').innerText = name;
+        }
+
+        appState.targetFolderId = null;
+        showAlert("Nou fitxer creat a Google Drive");
+    } catch (e) {
+        console.error(e);
+        showAlert("Error desant: " + e.message);
+    } finally {
+        hideLoader();
     }
 }
 
