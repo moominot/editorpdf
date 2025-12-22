@@ -1,4 +1,4 @@
-const CACHE_NAME = 'editor-acrobat-v3.2';
+const CACHE_NAME = 'editor-acrobat-v3';
 
 const ASSETS_TO_CACHE = [
   './editor.html',

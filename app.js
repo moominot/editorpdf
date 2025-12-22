@@ -52,6 +52,12 @@ const appState = {
     highlights: [], // { pageIndex, rects: [], color }
     activeTool: null,
 
+    // Google Drive Integration
+    driveFileId: null,
+    driveFolderId: null,
+    isGoogleAuth: false,
+    tokenClient: null,
+
     // Search
     searchState: {
         query: '',
@@ -154,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         document.getElementById('sidebar').classList.add('closed');
     }
+
+    // Google Drive Init
+    initDriveApi();
 });
 
 function setupEventListeners() {
@@ -260,6 +269,21 @@ function setupEventListeners() {
     // Search input listener
     document.getElementById('searchInput').addEventListener('input', (e) => {
         performSearch(e.target.value);
+    });
+
+    // Close drive options when clicking outside
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('driveOptions');
+        const driveBtn = document.getElementById('driveSaveMenu');
+        if (menu && !menu.contains(e.target) && driveBtn && !driveBtn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Exposar funcions de Drive
+    Object.assign(window.app, {
+        handleAuthClick: handleAuthClick,
+        saveToDrive: saveToDrive
     });
 }
 
@@ -2942,4 +2966,235 @@ function renderSearchHighlights() {
 function clearSearchHighlights() {
     const overlays = document.querySelectorAll('.search-highlight-overlay');
     overlays.forEach(overlay => overlay.remove());
+}
+
+// --- GOOGLE DRIVE INTEGRATION ---
+
+async function initDriveApi() {
+    try {
+        // Load the API client and auth2 library
+        await new Promise(resolve => gapi.load('client', resolve));
+        await gapi.client.init({
+            apiKey: GDRIVE_CONFIG.API_KEY,
+            discoveryDocs: GDRIVE_CONFIG.DISCOVERY_DOCS,
+        });
+
+        appState.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GDRIVE_CONFIG.CLIENT_ID,
+            scope: GDRIVE_CONFIG.SCOPES,
+            callback: '', // defined later
+        });
+
+        // Check if we have a hash token (redirected from auth) or session
+        const token = localStorage.getItem('gdrive_token');
+        if (token) {
+            const tokenData = JSON.parse(token);
+            if (tokenData.expires_at > Date.now()) {
+                gapi.client.setToken(tokenData);
+                appState.isGoogleAuth = true;
+                updateDriveUI();
+            }
+        }
+
+        // Handle URL parameters (Open With)
+        handleDriveState();
+    } catch (e) {
+        console.error("GAPI Init Error", e);
+    }
+}
+
+function updateDriveUI() {
+    const authBtn = document.getElementById('authBtn');
+    const driveMenu = document.getElementById('driveSaveMenu');
+    const saveBtn = document.getElementById('saveBtn');
+
+    if (appState.isGoogleAuth) {
+        authBtn.classList.add('hidden');
+        driveMenu.classList.remove('hidden');
+        saveBtn.classList.add('hidden'); // Hide local save if drive is connected?
+    } else {
+        authBtn.classList.remove('hidden');
+        driveMenu.classList.add('hidden');
+        saveBtn.classList.remove('hidden');
+    }
+}
+
+function handleAuthClick() {
+    appState.tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) throw (resp);
+        appState.isGoogleAuth = true;
+        // Save token
+        resp.expires_at = Date.now() + (resp.expires_in * 1000);
+        localStorage.setItem('gdrive_token', JSON.stringify(resp));
+        updateDriveUI();
+
+        // If we were waiting for a file load, do it now
+        if (appState.driveFileId) {
+            loadPdfFromDrive(appState.driveFileId);
+        }
+    };
+
+    if (gapi.client.getToken() === null) {
+        // Prompt the user to select a Google Account and ask for consent to share their data
+        // when establishing a new session.
+        appState.tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+        // Skip display of account chooser and consent dialog for an existing session.
+        appState.tokenClient.requestAccessToken({ prompt: '' });
+    }
+}
+
+function handleDriveState() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stateStr = urlParams.get('state');
+    if (stateStr) {
+        try {
+            const state = JSON.parse(stateStr);
+            if (state.action === 'open' && state.ids && state.ids.length > 0) {
+                appState.driveFileId = state.ids[0];
+                if (appState.isGoogleAuth) {
+                    loadPdfFromDrive(appState.driveFileId);
+                } else {
+                    showAlert("Connecta't a Google Drive per obrir el fitxer");
+                    document.getElementById('authBtn').classList.remove('hidden');
+                }
+            }
+        } catch (e) {
+            console.error("Error parsing state", e);
+        }
+    }
+}
+
+async function loadPdfFromDrive(fileId) {
+    showLoader("Carregant des de Google Drive...");
+    try {
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            fields: 'id, name, mimeType, parents'
+        });
+
+        const file = response.result;
+        appState.fileName = file.name;
+        appState.driveFileId = file.id;
+        appState.driveFolderId = file.parents ? file.parents[0] : null;
+        document.getElementById('docTitle').innerText = file.name;
+
+        // Fetch file content using fetch for robust binary handling
+        const binaryResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: {
+                'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+            }
+        });
+        const arrayBuffer = await binaryResponse.arrayBuffer();
+
+        appState.pdfBytes = new Uint8Array(arrayBuffer);
+        appState.pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+
+        // Reset state
+        appState.selectedPages.clear();
+        await extractExistingNotes();
+        await extractTextAnnotations();
+        await detectSignatures();
+
+        updateUI();
+        await renderSidebar();
+        await renderMainView();
+
+        showAlert("Fitxer carregat de Drive");
+    } catch (e) {
+        console.error("Load from Drive failed", e);
+        showAlert("Error carregant de Drive: " + (e.result?.error?.message || e.message));
+    } finally {
+        hideLoader();
+    }
+}
+
+async function saveToDrive(overwrite = true) {
+    if (!appState.isGoogleAuth) return handleAuthClick();
+    if (!appState.pdfDoc) return;
+
+    document.getElementById('driveOptions').classList.add('hidden');
+    showLoader(overwrite ? "Sobreusant fitxer a Drive..." : "Desant còpia a Drive...");
+
+    try {
+        // Apply form values and bake notes
+        if (Object.keys(appState.formValues).length > 0) {
+            const form = appState.pdfDoc.getForm();
+            for (const [key, val] of Object.entries(appState.formValues)) {
+                try {
+                    const field = form.getField(key);
+                    if (field) {
+                        if (field.constructor.name === 'PDFTextField') field.setText(val);
+                        else if (field.constructor.name === 'PDFCheckBox') val ? field.check() : field.uncheck();
+                        else if (field.constructor.name === 'PDFDropdown') field.select(val);
+                    }
+                } catch (err) { }
+            }
+        }
+        if (appState.notes.length > 0) await bakeNotes();
+
+        const pdfBytes = (appState.isSigned && appState.pdfBytes) ? appState.pdfBytes : await appState.pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+        if (overwrite && appState.driveFileId) {
+            // Update existing file
+            // Drive API v3 update with media requires a multipart upload or two requests
+            // Simplest is to use the upload URI
+            const metadata = {
+                name: appState.fileName,
+                mimeType: 'application/pdf'
+            };
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', blob);
+
+            const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${appState.driveFileId}?uploadType=multipart`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+                },
+                body: form
+            });
+
+            if (!resp.ok) throw new Error("Upload failed");
+            showAlert("Fitxer actualitzat a Google Drive");
+        } else {
+            // Create new file
+            const name = overwrite ? appState.fileName : (await window.app.askPrompt("Nom de la còpia", "Copia de " + appState.fileName) || "Copia de " + appState.fileName);
+            if (!name) return hideLoader();
+
+            const metadata = {
+                name: name,
+                mimeType: 'application/pdf',
+                parents: appState.driveFolderId ? [appState.driveFolderId] : []
+            };
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', blob);
+
+            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${gapi.client.getToken().access_token}`
+                },
+                body: form
+            });
+
+            if (!resp.ok) throw new Error("Create failed");
+            const newFile = await resp.json();
+            if (!overwrite) {
+                appState.driveFileId = newFile.id;
+                appState.fileName = newFile.name;
+                document.getElementById('docTitle').innerText = name;
+            }
+            showAlert("Nou fitxer creat a Google Drive");
+        }
+    } catch (e) {
+        console.error("Save to Drive failed", e);
+        showAlert("Error desant a Drive: " + e.message);
+    } finally {
+        hideLoader();
+    }
 }
