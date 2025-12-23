@@ -3348,7 +3348,7 @@ function showDrivePicker(mode = 'open', parentId = null) {
 
     if (mode === 'folder') {
         const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
-        view.setSelectableMimeTypes('application/vnd.google-apps.folder');
+        view.setMimeTypes('application/vnd.google-apps.folder');
         view.setParent(parentId || 'root'); // default root
 
         const picker = new google.picker.PickerBuilder()
