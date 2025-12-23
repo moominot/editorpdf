@@ -3064,7 +3064,9 @@ async function handleAuthResponse(resp) {
 
     updateDriveUI();
 
-    if (appState.driveFileId) {
+    if (appState.pendingMergeDriveIds) {
+        loadMultipleDriveFilesByIds(appState.pendingMergeDriveIds);
+    } else if (appState.driveFileId) {
         loadPdfFromDrive(appState.driveFileId);
     }
 }
@@ -3135,7 +3137,10 @@ function handleDriveState() {
     if (stateStr) {
         try {
             const state = JSON.parse(stateStr);
-            if (state.ids && state.ids.length > 0) {
+            if (state.ids && state.ids.length > 1) {
+                // Check logic for Multi-file
+                appState.pendingMergeDriveIds = state.ids;
+            } else if (state.ids && state.ids.length === 1) {
                 appState.driveFileId = state.ids[0];
             } else if (state.id) {
                 appState.driveFileId = state.id;
@@ -3145,7 +3150,21 @@ function handleDriveState() {
         }
     }
 
-    if (appState.driveFileId) {
+    if (appState.pendingMergeDriveIds && appState.pendingMergeDriveIds.length > 0) {
+        if (appState.isGoogleAuth) {
+            // Map IDs to minimal doc objects for processDriveFilesForMerge
+            // processDriveFilesForMerge expects objects with {id, name} but usually fetches names itself if not provided?
+            // Checking processDriveFilesForMerge: it expects objects with .id and .name. 
+            // We need to fetch names first or update processDriveFilesForMerge to handle missing names?
+            // processDriveFilesForMerge uses 'doc.name', so we must provide it.
+            // But we only have IDs here.
+            // Better strategy: Create a new helper 'processDriveByIdsForMerge' or fetch metadata first.
+            // Simplest: Fetch metadata loop here or in a helper.
+            loadMultipleDriveFilesByIds(appState.pendingMergeDriveIds);
+        } else {
+            document.getElementById('authBtn').classList.remove('hidden');
+        }
+    } else if (appState.driveFileId) {
         if (appState.isGoogleAuth) {
             loadPdfFromDrive(appState.driveFileId);
         } else {
@@ -3663,3 +3682,47 @@ async function confirmMerge() {
         hideLoader();
     }
 }
+
+
+async function loadMultipleDriveFilesByIds(ids) {
+
+    showLoader("Obtenint informaci�� dels fitxers...");
+
+    try {
+
+        const docs = [];
+
+        for (const id of ids) {
+
+            const res = await gapi.client.drive.files.get({
+
+                fileId: id,
+
+                fields: 'id, name, mimeType',
+
+                supportsAllDrives: true
+
+            });
+
+            docs.push(res.result);
+
+        }
+
+        // Now trigger the merge logic
+
+        appState.pendingMergeFiles = [];
+
+        await processDriveFilesForMerge(docs);
+
+    } catch (e) {
+
+        console.error(e);
+
+        showAlert("Error obtenint metadades: " + e.message);
+
+        hideLoader();
+
+    }
+
+}
+
