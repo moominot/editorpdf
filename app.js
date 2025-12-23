@@ -1746,13 +1746,65 @@ async function signWithAutoFirma() {
         params += `signaturePositionOnPageLowerLeftY=${Math.round(rect.y)}\n`;
         params += `signaturePositionOnPageUpperRightX=${Math.round(rect.x + rect.w)}\n`;
         params += `signaturePositionOnPageUpperRightY=${Math.round(rect.y + rect.h)}\n`;
-        if (appState.uploadedSigFile) params += "signatureRubricImage=" + await blobToBase64(appState.uploadedSigFile);
+
+        if (appState.uploadedSigFile) {
+            let sigBase64;
+            if (appState.uploadedSigFile.type === 'image/png') {
+                // Convert PNG to JPG (AutoFirma doesn't support PNG)
+                sigBase64 = await convertPngToJpgBase64(appState.uploadedSigFile);
+            } else {
+                sigBase64 = await blobToBase64(appState.uploadedSigFile);
+            }
+            // Ensure no data prefix if present (AutoScript logic usually expects pure base64 but let's check blobToBase64 result)
+            // If blobToBase64 returns "data:...", we strip it.
+            // But looking at existing code: "params += "signatureRubricImage=" + await blobToBase64(appState.uploadedSigFile);"
+            // It seems it used the result directly.
+            // If the original worked, it probably expected base64 usage. 
+            // However, typical dataURL has comma. 
+            // Let's safe-guardstrip check.
+            if (sigBase64.includes(',')) {
+                sigBase64 = sigBase64.split(',')[1];
+            }
+            params += "signatureRubricImage=" + sigBase64;
+        }
 
         window.AutoScript.sign(b64, "SHA512withRSA", "AUTO", params,
             (res) => loadSignedPdf(base64ToUint8(res)),
             (type, msg) => { hideLoader(); showAlert("Error: " + msg); }
         );
     } catch (e) { hideLoader(); showAlert(e.message); }
+}
+
+async function convertPngToJpgBase64(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Fill white background for transparency
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.drawImage(img, 0, 0);
+
+            // Export as JPEG
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
 async function loadSignedPdf(bytes) {
