@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓ I ESTAT ---
+﻿// --- CONFIGURACIÓ I ESTAT ---
 const appState = {
     pdfDoc: null,
     pdfBytes: null,
@@ -58,6 +58,12 @@ const appState = {
     targetFolderId: null,
     isGoogleAuth: false,
     tokenClient: null,
+
+    // Merge
+    pendingMergeFiles: [], // Array of { id, name, fileObject (Blob/File), pagesCount }
+
+    // Merge
+    pendingMergeFiles: [],
 
     // Search
     searchState: {
@@ -252,11 +258,36 @@ function setupEventListeners() {
         toggleSearch: toggleSearch,
         closeSearch: closeSearch,
         searchNext: searchNext,
-        searchPrevious: searchPrevious
+        searchPrevious: searchPrevious,
+        // Merge functions
+        closeMergeModal: closeMergeModal,
+        confirmMerge: confirmMerge,
+        showDrivePicker: showDrivePicker, // Ensure this is exposed if not already
+        removeMergeFile: removeMergeFile,
+        moveMergeFile: moveMergeFile
     });
 
     // Listener for text selection (highlighting)
     document.addEventListener('mouseup', handleHighlightSelection);
+
+    // Merge Input Listener
+    document.getElementById('addMergeInput').onchange = (e) => {
+        if (e.target.files.length) handleMultipleFiles(Array.from(e.target.files));
+        e.target.value = '';
+    };
+
+    // Main Input Listener - Update to handle multiple
+    document.getElementById('mainPdfInput').onchange = (e) => {
+        if (e.target.files.length > 0) {
+            if (e.target.files.length > 1) {
+                appState.pendingMergeFiles = []; // Reset if new selection from main
+                handleMultipleFiles(Array.from(e.target.files));
+            } else {
+                loadPdfFile(e.target.files[0]);
+            }
+        }
+        e.target.value = '';
+    };
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -3296,56 +3327,74 @@ function showDrivePicker(mode = 'open', parentId = null) {
     const token = gapi.client.getToken().access_token;
     const appId = GDRIVE_CONFIG.CLIENT_ID.split('-')[0];
 
-    let view;
     if (mode === 'folder') {
-        view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+        const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
         view.setSelectableMimeTypes('application/vnd.google-apps.folder');
-    } else if (mode === 'signature') {
-        view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES);
+        view.setParent(parentId || 'root'); // default root
+
+        const picker = new google.picker.PickerBuilder()
+            .enableFeature(google.picker.Feature.NAV_HIDDEN)
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .setAppId(appId)
+            .setOAuthToken(token)
+            .addView(view)
+            .setTitle('Selecciona Carpeta de Destí')
+            .setCallback((data) => handlePickerSelection(data, mode))
+            .build();
+        picker.setVisible(true);
     } else {
-        view = new google.picker.DocsView(google.picker.ViewId.PDFS);
-        view.setMimeTypes('application/pdf');
-    }
+        const view = mode === 'signature'
+            ? new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
+            : new google.picker.DocsView(google.picker.ViewId.PDFS);
 
-    if (parentId) {
-        view.setParent(parentId);
-    }
+        if (mode !== 'signature') view.setMimeTypes('application/pdf');
 
-    // Enable folder navigation for file picking modes
-    if (mode !== 'folder') {
+        if (parentId) view.setParent(parentId);
         view.setIncludeFolders(true);
-    }
 
-    const picker = new google.picker.PickerBuilder()
-        .enableFeature(google.picker.Feature.NAV_HIDDEN)
-        .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
-        .setAppId(appId)
-        .setOAuthToken(token)
-        .addView(view)
-        .setTitle(mode === 'folder' ? 'Selecciona Carpeta de Destí' : 'Selecciona Fitxer')
-        .setCallback((data) => handlePickerSelection(data, mode))
-        .build();
-    picker.setVisible(true);
+        const builder = new google.picker.PickerBuilder()
+            .enableFeature(google.picker.Feature.NAV_HIDDEN)
+            .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
+            .setAppId(appId)
+            .setOAuthToken(token)
+            .addView(view)
+            .setTitle(mode === 'signature' ? 'Selecciona Signatura' : 'Selecciona Fitxer(s)')
+            .setCallback((data) => handlePickerSelection(data, mode));
+
+        if (mode === 'open' || mode === 'merge') {
+            builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+        }
+
+        const picker = builder.build();
+        picker.setVisible(true);
+    }
 }
 
 async function handlePickerSelection(data, mode) {
     if (data.action === google.picker.Action.PICKED) {
-        const file = data.docs[0];
-        const fileId = file.id;
+        const docs = data.docs;
 
         if (mode === 'open') {
-            loadPdfFromDrive(fileId);
+            if (docs.length > 1) {
+                // Multi-file open -> treat as merge
+                appState.pendingMergeFiles = []; // Reset
+                await processDriveFilesForMerge(docs);
+            } else {
+                loadPdfFromDrive(docs[0].id);
+            }
+        } else if (mode === 'merge') {
+            await processDriveFilesForMerge(docs);
         } else if (mode === 'insert') {
-            loadPdfForInsertFromDrive(fileId);
+            // Existing insert logic (single file for now)
+            loadPdfForInsertFromDrive(docs[0].id);
         } else if (mode === 'signature') {
-            loadImageForSignatureFromDrive(fileId);
+            loadImageForSignatureFromDrive(docs[0].id);
         } else if (mode === 'folder') {
+            const fileId = docs[0].id;
             appState.targetFolderId = fileId;
             if (appState.pendingSave) {
                 const { overwrite, name, blob } = appState.pendingSave;
                 appState.pendingSave = null;
-                // Re-trigger save with the now-set targetFolderId
-                // We bypass showLoader because we might need to prompt again or just use current data
                 executeCreationSave(name, blob, overwrite);
             }
         }
@@ -3431,11 +3480,9 @@ async function loadImageForSignatureFromDrive(fileId) {
             }
         });
         const blob = await response.blob();
-        appState.uploadedSigFile = blob;
 
-        const fileName = (await gapi.client.drive.files.get({ fileId, fields: 'name', supportsAllDrives: true })).result.name;
-        appState.uploadedSigFile.name = fileName;
-        document.getElementById('sigFileName').innerText = fileName;
+        appState.uploadedSigFile = new File([blob], "signature_drive.png", { type: blob.type });
+        document.getElementById('sigFileName').innerText = "signature_drive.png";
         document.getElementById('sigFileName').classList.add('text-indigo-600', 'font-medium');
 
         const reader = new FileReader();
@@ -3448,14 +3495,171 @@ async function loadImageForSignatureFromDrive(fileId) {
         };
         reader.readAsDataURL(blob);
     } catch (e) {
-        console.error("Load for signature failed", e);
-        showAlert("Error carregant imatge de Drive: " + e.message);
+        console.error(e);
+        showAlert("Error carregant signatura: " + e.message);
     } finally {
         hideLoader();
     }
 }
 
-// Export functions
-Object.assign(window.app, {
-    showDrivePicker
-});
+// --- MERGE & MULTI-FILE LOGIC ---
+
+async function handleMultipleFiles(files) {
+    showLoader("Processant fitxers...");
+    try {
+        for (const file of files) {
+            const arrayBuffer = await file.arrayBuffer();
+            try {
+                const doc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                appState.pendingMergeFiles.push({
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    data: arrayBuffer,
+                    pages: doc.getPageCount()
+                });
+            } catch (e) {
+                console.error("Error loading PDF for merge:", file.name, e);
+            }
+        }
+        updateMergeList();
+        document.getElementById('mergeModal').classList.remove('hidden');
+    } catch (e) {
+        showAlert("Error llegint fitxers: " + e.message);
+    } finally {
+        hideLoader();
+    }
+}
+
+async function processDriveFilesForMerge(docs) {
+    showLoader("Descarregant fitxers de Drive...");
+    try {
+        const token = gapi.client.getToken().access_token;
+        for (const doc of docs) {
+            const fileId = doc.id;
+            const name = doc.name;
+
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const buffer = await res.arrayBuffer();
+
+            const pages = (await PDFDocument.load(buffer, { ignoreEncryption: true })).getPageCount();
+
+            appState.pendingMergeFiles.push({
+                id: Date.now() + Math.random(),
+                name: name,
+                data: buffer,
+                pages: pages
+            });
+        }
+        updateMergeList();
+        document.getElementById('mergeModal').classList.remove('hidden');
+    } catch (e) {
+        console.error(e);
+        showAlert("Error descarregant de Drive: " + e.message);
+    } finally {
+        hideLoader();
+    }
+}
+
+function updateMergeList() {
+    const list = document.getElementById('mergeFileList');
+    list.innerHTML = '';
+
+    appState.pendingMergeFiles.forEach((file, index) => {
+        const div = document.createElement('div');
+        div.className = "bg-white p-3 rounded-lg border border-slate-200 flex items-center gap-3 shadow-sm hover:shadow-md transition group";
+
+        div.innerHTML = `
+            <div class="flex-shrink-0 w-10 h-10 bg-red-50 text-red-500 rounded flex items-center justify-center">
+                <i data-lucide="file-text" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm text-slate-700 truncate" title="${file.name}">${file.name}</div>
+                <div class="text-xs text-slate-400">${file.pages} pàgines</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.app.moveMergeFile(${index}, -1)" class="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition" ${index === 0 ? 'disabled' : ''}>
+                    <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                </button>
+                <button onclick="window.app.moveMergeFile(${index}, 1)" class="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition" ${index === appState.pendingMergeFiles.length - 1 ? 'disabled' : ''}>
+                    <i data-lucide="arrow-down" class="w-5 h-5"></i>
+                </button>
+                <button onclick="window.app.removeMergeFile(${index})" class="p-2 bg-red-50 hover:bg-red-100 border border-red-100 text-red-500 rounded ml-1 transition">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+    lucide.createIcons();
+}
+
+function moveMergeFile(index, direction) {
+    if (index + direction < 0 || index + direction >= appState.pendingMergeFiles.length) return;
+
+    const temp = appState.pendingMergeFiles[index];
+    appState.pendingMergeFiles[index] = appState.pendingMergeFiles[index + direction];
+    appState.pendingMergeFiles[index + direction] = temp;
+    updateMergeList();
+}
+
+function removeMergeFile(index) {
+    appState.pendingMergeFiles.splice(index, 1);
+    updateMergeList();
+    if (appState.pendingMergeFiles.length === 0) {
+        closeMergeModal();
+    }
+}
+
+function closeMergeModal() {
+    document.getElementById('mergeModal').classList.add('hidden');
+}
+
+async function confirmMerge() {
+    if (appState.pendingMergeFiles.length === 0) return;
+
+    showLoader("Fusionant documents...");
+    closeMergeModal();
+
+    try {
+        const mergedPdf = await PDFDocument.create();
+
+        for (const file of appState.pendingMergeFiles) {
+            const doc = await PDFDocument.load(file.data);
+            const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+            copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+
+        const mergedBytes = await mergedPdf.save();
+
+        appState.fileName = "merged_document.pdf";
+        document.getElementById('docTitle').innerText = appState.fileName;
+
+        appState.pdfBytes = mergedBytes;
+        appState.pdfDoc = await PDFDocument.load(mergedBytes);
+
+        appState.selectedPages.clear();
+        await extractExistingNotes();
+        await extractTextAnnotations();
+
+        // Clear history
+        appState.history = [];
+
+        updateUI();
+        await renderSidebar();
+        await renderMainView();
+
+        // ENABLE SAVE BUTTON IMMEDIATELY
+        document.getElementById('saveBtn').disabled = false;
+        document.getElementById('saveBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+
+        showAlert("Documents fusionats correctament!");
+
+    } catch (e) {
+        console.error(e);
+        showAlert("Error en la fusió: " + e.message);
+    } finally {
+        hideLoader();
+    }
+}
