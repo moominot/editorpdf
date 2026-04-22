@@ -1,0 +1,145 @@
+/* styles_forms.css - Styles for form panel */
+.form-panel {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 400px;
+    max-height: 600px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.form-panel h3 {
+    margin-top: 0;
+    color: #1e293b;
+    font-size: 18px;
+    margin-bottom: 15px;
+}
+
+.form-field-container {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-field-container label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-field-container input[type="text"],
+.form-field-container input[type="email"],
+.form-field-container input[type="number"],
+.form-field-container select,
+.form-field-container textarea {
+    padding: 8px 10px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.form-field-container input[type="text"]:focus,
+.form-field-container input[type="email"]:focus,
+.form-field-container input[type="number"]:focus,
+.form-field-container select:focus,
+.form-field-container textarea:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.form-field-container input[type="text"]:disabled,
+.form-field-container select:disabled,
+.form-field-container textarea:disabled {
+    background-color: #e8e8e8;
+    cursor: not-allowed;
+}
+
+.form-field-container input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
+    cursor: pointer;
+}
+
+.form-field-container input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.form-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.form-buttons button {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-fill-form {
+    background-color: #0066cc;
+    color: white;
+}
+
+.btn-fill-form:hover {
+    background-color: #0052a3;
+}
+
+.btn-fill-form:active {
+    transform: translateY(1px);
+}
+
+.btn-save-draft {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-save-draft:hover {
+    background-color: #1e7e34;
+}
+
+.btn-export-form {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-export-form:hover {
+    background-color: #5a6268;
+}
+
+.form-alert {
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-alert.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.form-alert.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.form-alert.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
