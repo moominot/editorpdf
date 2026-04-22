@@ -3895,22 +3895,44 @@ window.app.saveFormData = async function() {
             return;
         }
         
+        console.log('💾 === SAVING FORM DATA ===');
+        showLoader('Guardant formulari...');
+        
         const formData = FormUIBuilder.getFormData();
+        console.log('📋 Form data collected:', formData);
         
         // Fill the form in the PDF
-        await FormFiller.fillForm(appState.pdfDoc, formData);
+        console.log('🔄 Filling PDF with form data...');
+        const fillResult = await FormFiller.fillForm(appState.pdfDoc, formData);
+        console.log('✅ Fill result:', fillResult);
         
-        // Save draft
+        // Save draft to localStorage
+        console.log('💾 Saving draft to localStorage...');
         const formStorage = new FormStorage();
-        formStorage.saveDraft(appState.fileName, formData);
+        const draftSaved = formStorage.saveDraft(appState.fileName, formData);
+        console.log('✅ Draft saved:', draftSaved);
         
         // Export filled PDF
+        console.log('⬇️ Exporting filled PDF...');
         const filename = appState.fileName.replace('.pdf', '_completed.pdf');
-        await FormFiller.exportFilledForm(appState.pdfDoc, filename);
+        const exportResult = await FormFiller.exportFilledForm(appState.pdfDoc, filename);
+        console.log('✅ Export result:', exportResult);
         
-        showAlert('Formulari guardat i exportat correctament');
+        hideLoader();
+        
+        if (fillResult && exportResult) {
+            console.log('✅ Form saved successfully');
+            showAlert(`Formulari guardat com: ${filename}`);
+        } else {
+            console.warn('⚠️ Some operations may have failed');
+            showAlert('Formulari guardat, però podria haver-hi problemes amb l\'ompliment');
+        }
+        
+        console.log('💾 === SAVING COMPLETE ===');
     } catch (error) {
-        console.error('Error saving form:', error);
+        console.error('❌ Error saving form:', error);
+        console.error('Stack trace:', error.stack);
+        hideLoader();
         showAlert('Error desant el formulari: ' + error.message);
     }
 };
@@ -4106,6 +4128,56 @@ window.app.manuallyCheckForm = async function() {
         }
     } else {
         console.warn('⚠️ No form fields detected in PDF');
+    }
+};
+
+/**
+ * Test form filling functionality
+ * Call: window.app.testFormFilling()
+ */
+window.app.testFormFilling = async function() {
+    if (!appState.pdfDoc) {
+        console.error('❌ No PDF loaded');
+        return;
+    }
+    
+    if (!appState.isFormMode) {
+        console.error('❌ No form loaded');
+        return;
+    }
+    
+    console.log('🧪 === TESTING FORM FILLING ===');
+    
+    try {
+        // Step 1: Get current form data
+        console.log('📋 Step 1: Collecting form data...');
+        const formData = FormUIBuilder.getFormData();
+        console.log('✅ Form data:', formData);
+        
+        // Step 2: Create test data
+        console.log('📋 Step 2: Creating test data...');
+        const testData = {};
+        Object.keys(formData).forEach(key => {
+            testData[key] = `TEST_${key}_${new Date().getTime()}`;
+        });
+        console.log('✅ Test data:', testData);
+        
+        // Step 3: Fill the PDF
+        console.log('📋 Step 3: Filling PDF...');
+        const fillResult = await FormFiller.fillForm(appState.pdfDoc, testData);
+        console.log('✅ Fill result:', fillResult);
+        
+        // Step 4: Save the test PDF
+        console.log('📋 Step 4: Exporting test PDF...');
+        await FormFiller.exportFilledForm(appState.pdfDoc, 'test_form_filled.pdf');
+        console.log('✅ Test PDF exported');
+        
+        console.log('🧪 === TEST COMPLETE ===');
+        console.log('📝 Check the exported test_form_filled.pdf to see if fields were filled');
+        
+    } catch (error) {
+        console.error('❌ Test failed:', error);
+        console.error('Stack:', error.stack);
     }
 };
 
