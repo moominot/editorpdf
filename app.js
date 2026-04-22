@@ -3797,15 +3797,26 @@ window.app.initializeFormSupport = async function() {
     }
     
     try {
+        console.log('🔍 Initializing form support for:', appState.fileName);
+        
         // Analyze form fields
         const formAnalysis = await FormAnalyzer.analyzeFormFields(appState.pdfDoc);
         
         if (!formAnalysis.hasForm) {
-            console.log('No form fields detected in PDF');
+            console.log('📄 This PDF does not contain any form fields');
+            
+            // Show message in sidebar
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) {
+                const noFormMsg = document.createElement('div');
+                noFormMsg.className = 'p-4 bg-slate-100 rounded border border-slate-300';
+                noFormMsg.innerHTML = '<p class="text-sm text-slate-600">📄 Aquest PDF no conté formularis rellenables.</p>';
+                sidebar.appendChild(noFormMsg);
+            }
             return;
         }
         
-        console.log('Form detected with', formAnalysis.fields.length, 'fields');
+        console.log('✅ Form detected with', formAnalysis.fields.length, 'fields');
         appState.formAnalysis = formAnalysis;
         appState.isFormMode = true;
         
@@ -3825,7 +3836,7 @@ window.app.initializeFormSupport = async function() {
         window.app.addFormActionButtons(formAnalysis.fields);
         
     } catch (error) {
-        console.error('Error initializing form support:', error);
+        console.error('❌ Error initializing form support:', error);
     }
 };
 
@@ -3953,4 +3964,149 @@ window.app.clearFormData = function() {
         showAlert('Error netejant el formulari: ' + error.message);
     }
 };
+
+/**
+ * Debug function to check PDF structure for forms
+ * Call this in the browser console: window.app.debugFormDetection()
+ */
+window.app.debugFormDetection = function() {
+    if (!appState.pdfDoc) {
+        console.error('❌ No PDF loaded');
+        return;
+    }
+    
+    console.log('=== PDF FORM DETECTION DEBUG ===');
+    console.log('📄 File:', appState.fileName);
+    console.log('📊 PDFDocument object:', appState.pdfDoc);
+    console.log('📊 PDFDocument constructor:', appState.pdfDoc.constructor.name);
+    
+    try {
+        // List all methods and properties
+        console.log('📋 Available methods:');
+        const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(appState.pdfDoc));
+        methods.forEach(method => console.log(`  - ${method}`));
+        
+        let acroForm = null;
+        
+        // Try Method 1
+        if (typeof appState.pdfDoc.getAcroForm === 'function') {
+            console.log('✅ Found getAcroForm() method');
+            acroForm = appState.pdfDoc.getAcroForm();
+        }
+        // Try Method 2
+        else if (typeof appState.pdfDoc.getForm === 'function') {
+            console.log('✅ Found getForm() method');
+            acroForm = appState.pdfDoc.getForm();
+        }
+        // Try Method 3
+        else if (appState.pdfDoc.acroForm) {
+            console.log('✅ Found acroForm property');
+            acroForm = appState.pdfDoc.acroForm;
+        }
+        // Try Method 4
+        else if (appState.pdfDoc.catalog?.acroForm) {
+            console.log('✅ Found catalog.acroForm property');
+            acroForm = appState.pdfDoc.catalog.acroForm;
+        }
+        
+        console.log('📋 AcroForm:', acroForm);
+        
+        if (!acroForm) {
+            console.warn('⚠️ No AcroForm found!');
+            console.warn('💡 This PDF does not have interactive form fields');
+            return;
+        }
+        
+        let fields = null;
+        
+        if (typeof acroForm.getFields === 'function') {
+            fields = acroForm.getFields();
+        } else if (Array.isArray(acroForm.fields)) {
+            fields = acroForm.fields;
+        } else if (acroForm.Fields) {
+            fields = acroForm.Fields;
+        }
+        
+        console.log('📦 Fields:', fields);
+        console.log('📊 Number of fields:', fields ? fields.length : 0);
+        
+        if (fields && fields.length > 0) {
+            console.log('✅ Form fields found:');
+            fields.forEach((fieldRef, idx) => {
+                try {
+                    let field = fieldRef;
+                    if (typeof fieldRef.lookup === 'function') {
+                        field = fieldRef.lookup();
+                    }
+                    
+                    let name = 'Unknown';
+                    if (typeof field.get === 'function') {
+                        name = field.get('T')?.toString() || 'Unknown';
+                    } else {
+                        name = field.T?.toString() || field.fieldName || 'Unknown';
+                    }
+                    
+                    console.log(`  ${idx}: ${this._cleanString(name)}`);
+                } catch (e) {
+                    console.warn(`  ${idx}: Error parsing field`);
+                }
+            });
+        } else {
+            console.warn('⚠️ AcroForm exists but has no fields');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error during debug:', error);
+        console.error('Stack:', error.stack);
+    }
+    
+    console.log('=== END DEBUG ===');
+    
+    // Helper cleanup
+    delete window.app.debugFormDetection._cleanString;
+};
+
+window.app.debugFormDetection._cleanString = function(str) {
+    if (!str) return '';
+    return str.replace(/\(|\)/g, '').trim();
+};
+
+/**
+ * Manually trigger form analysis
+ * Call this in the browser console: window.app.manuallyCheckForm()
+ */
+window.app.manuallyCheckForm = async function() {
+    if (!appState.pdfDoc) {
+        console.error('❌ No PDF loaded');
+        return;
+    }
+    
+    console.log('🔍 Manually checking form in current PDF...');
+    const result = await FormAnalyzer.analyzeFormFields(appState.pdfDoc);
+    
+    if (result.hasForm) {
+        console.log('✅ FORM DETECTED!');
+        console.log('📊 Fields:', result.fields);
+        
+        // Ask user if they want to load it
+        if (confirm(`Found ${result.fields.length} form fields. Load them now?`)) {
+            appState.formAnalysis = result;
+            appState.isFormMode = true;
+            const formPanel = FormUIBuilder.buildFormPanel(result.fields);
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) {
+                sidebar.innerHTML = '';
+                const container = document.createElement('div');
+                container.className = 'p-4';
+                container.appendChild(formPanel);
+                sidebar.appendChild(container);
+            }
+            window.app.addFormActionButtons(result.fields);
+            lucide.createIcons();
+        }
+    } else {
+        console.warn('⚠️ No form fields detected in PDF');
+    }
+};
+
 
