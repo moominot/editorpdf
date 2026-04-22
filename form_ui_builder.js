@@ -80,5 +80,20 @@ class FormUIBuilder {
         });
         return formData;
     }
+
+    static setFormData(formData) {
+        const inputs = document.querySelectorAll('#formPanel input, #formPanel select');
+        inputs.forEach(input => {
+            const fieldName = input.getAttribute('data-field-name');
+            if (fieldName && formData.hasOwnProperty(fieldName)) {
+                const value = formData[fieldName];
+                if (input.type === 'checkbox') {
+                    input.checked = value === 'Yes' || value === 'On' || value === true;
+                } else {
+                    input.value = value || '';
+                }
+            }
+        });
+    }
 }
 window.FormUIBuilder = FormUIBuilder;

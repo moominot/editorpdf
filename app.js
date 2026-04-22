@@ -35,6 +35,9 @@ const appState = {
 
     // Formularis
     formValues: {}, // { fieldName: value } per persistir entre canvis de pàgina/vista
+    formAnalysis: null, // Result from FormAnalyzer
+    formPanel: null, // Reference to form UI panel
+    isFormMode: false, // Whether a form is currently loaded
 
     // Signatures
     detectedSignatures: [],
@@ -336,6 +339,7 @@ async function loadPdfFile(file) {
         await extractExistingNotes();
         await extractTextAnnotations();
         await detectSignatures();
+        await window.app.initializeFormSupport();
 
         updateUI();
         await renderSidebar();
@@ -3779,4 +3783,174 @@ async function loadMultipleDriveFilesByIds(ids) {
     }
 
 }
+
+// --- FORM HANDLING SUPPORT ---
+
+/**
+ * Initialize form support for loaded PDF
+ * Detects form fields and builds UI
+ */
+window.app.initializeFormSupport = async function() {
+    if (!appState.pdfDoc) {
+        console.warn('No PDF loaded');
+        return;
+    }
+    
+    try {
+        // Analyze form fields
+        const formAnalysis = await FormAnalyzer.analyzeFormFields(appState.pdfDoc);
+        
+        if (!formAnalysis.hasForm) {
+            console.log('No form fields detected in PDF');
+            return;
+        }
+        
+        console.log('Form detected with', formAnalysis.fields.length, 'fields');
+        appState.formAnalysis = formAnalysis;
+        appState.isFormMode = true;
+        
+        // Build form UI
+        const formPanel = FormUIBuilder.buildFormPanel(formAnalysis.fields);
+        
+        // Add to sidebar
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) {
+            const container = document.createElement('div');
+            container.className = 'p-4';
+            container.appendChild(formPanel);
+            sidebar.appendChild(container);
+        }
+        
+        // Add action buttons
+        window.app.addFormActionButtons(formAnalysis.fields);
+        
+    } catch (error) {
+        console.error('Error initializing form support:', error);
+    }
+};
+
+/**
+ * Add action buttons for form manipulation
+ */
+window.app.addFormActionButtons = function(fields) {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'flex flex-col gap-2 p-4 border-t border-slate-300';
+    
+    // Fill and Save button
+    const fillBtn = document.createElement('button');
+    fillBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm font-medium';
+    fillBtn.innerHTML = '<i data-lucide="save" class="w-4 h-4 inline mr-2"></i>Guardar Formulari';
+    fillBtn.onclick = async () => {
+        await window.app.saveFormData();
+    };
+    buttonContainer.appendChild(fillBtn);
+    
+    // Load draft button
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition text-sm font-medium';
+    loadBtn.innerHTML = '<i data-lucide="upload" class="w-4 h-4 inline mr-2"></i>Carregar Borrador';
+    loadBtn.onclick = async () => {
+        await window.app.loadFormDraft();
+    };
+    buttonContainer.appendChild(loadBtn);
+    
+    // Clear form button
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm font-medium';
+    clearBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4 inline mr-2"></i>Netejar Formulari';
+    clearBtn.onclick = () => {
+        if (confirm('Estàs segur que vols netejar el formulari?')) {
+            window.app.clearFormData();
+        }
+    };
+    buttonContainer.appendChild(clearBtn);
+    
+    sidebar.appendChild(buttonContainer);
+    
+    // Initialize icons
+    setTimeout(() => lucide.createIcons(), 0);
+};
+
+/**
+ * Save current form data
+ */
+window.app.saveFormData = async function() {
+    try {
+        if (!appState.isFormMode) {
+            showAlert('No form loaded');
+            return;
+        }
+        
+        const formData = FormUIBuilder.getFormData();
+        
+        // Fill the form in the PDF
+        await FormFiller.fillForm(appState.pdfDoc, formData);
+        
+        // Save draft
+        const formStorage = new FormStorage();
+        formStorage.saveDraft(appState.fileName, formData);
+        
+        // Export filled PDF
+        const filename = appState.fileName.replace('.pdf', '_completed.pdf');
+        await FormFiller.exportFilledForm(appState.pdfDoc, filename);
+        
+        showAlert('Formulari guardat i exportat correctament');
+    } catch (error) {
+        console.error('Error saving form:', error);
+        showAlert('Error desant el formulari: ' + error.message);
+    }
+};
+
+/**
+ * Load form draft from localStorage
+ */
+window.app.loadFormDraft = async function() {
+    try {
+        if (!appState.isFormMode) {
+            showAlert('No form loaded');
+            return;
+        }
+        
+        const formStorage = new FormStorage();
+        const draftData = formStorage.loadDraft(appState.fileName);
+        
+        if (!draftData) {
+            showAlert('No hi ha cap borrador guardat per aquest formulari');
+            return;
+        }
+        
+        // Populate form fields with draft data
+        FormUIBuilder.setFormData(draftData);
+        showAlert('Borrador carregat correctament');
+    } catch (error) {
+        console.error('Error loading draft:', error);
+        showAlert('Error carregant el borrador: ' + error.message);
+    }
+};
+
+/**
+ * Clear all form data
+ */
+window.app.clearFormData = function() {
+    try {
+        const formPanel = document.getElementById('formPanel');
+        if (formPanel) {
+            const inputs = formPanel.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    input.checked = false;
+                } else {
+                    input.value = '';
+                }
+            });
+        }
+        showAlert('Formulari netejat');
+    } catch (error) {
+        console.error('Error clearing form:', error);
+        showAlert('Error netejant el formulari: ' + error.message);
+    }
+};
 
