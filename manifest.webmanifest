@@ -1,13 +1,37 @@
 {
+  "id": "./",
   "name": "PDF Simple",
   "short_name": "PDF Simple",
   "description": "Editor, formularis i signatura de PDF",
+  "lang": "ca",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "background_color": "#14181f",
   "theme_color": "#1f2937",
   "icons": [
+    {
+      "src": "img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "img/icon.svg",
       "sizes": "any",
@@ -18,11 +42,23 @@
   "file_handlers": [
     {
       "action": "./",
+      "name": "PDF",
       "accept": {
         "application/pdf": [
           ".pdf"
         ]
-      }
+      },
+      "icons": [
+        {
+          "src": "img/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
     }
-  ]
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }

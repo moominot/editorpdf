@@ -1,6 +1,6 @@
 // Service worker: permet usar l'app sense connexió. Vendor = cache primer; codi de l'app = xarxa primer.
-const VERSION = 'pdfsimple-v1';
-const SHELL = ['./', 'index.html', 'css/style.css', 'img/icon.svg', 'manifest.webmanifest'];
+const VERSION = 'pdfsimple-v2';
+const SHELL = ['./', 'index.html', 'css/style.css', 'img/icon.svg', 'img/icon-192.png', 'img/icon-512.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

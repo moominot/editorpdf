@@ -19,6 +19,8 @@ import { showSignatures } from './sigpanel.js';
 
 addStrings({
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
+  installApp: ["Instal·la l'app (Obre amb… des de Windows)", 'Instalar la app (Abrir con… desde Windows)', 'Install app (Open with… from Windows)'],
+  installed: ["App instal·lada. Ara, a l'Explorador: clic dret sobre un PDF → Obre amb → PDF Simple.", 'App instalada. Ahora, en el Explorador: clic derecho en un PDF → Abrir con → PDF Simple.', 'App installed. Now in File Explorer: right-click a PDF → Open with → PDF Simple.'],
   insertedN: ['{0} pàgina(es) inserida(es)', '{0} página(s) insertada(s)', '{0} page(s) inserted'],
   extractName: ['Extret', 'Extraído', 'Extract'],
   pageGoto: ['Ves a la pàgina (1-{0}):', 'Ir a la página (1-{0}):', 'Go to page (1-{0}):'],
@@ -207,7 +209,11 @@ $('#st-page').addEventListener('click', async () => {
 });
 
 // ------------------------------------------------------------------ accions de menú / botons
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; $('#btn-install').hidden = false; });
+window.addEventListener('appinstalled', () => { installEvt = null; $('#btn-install').hidden = true; toast(t('installed'), 'ok', 6000); });
 const actions = {
+  'install-app': async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#btn-install').hidden = true; },
   'open-local': openLocal, 'open-drive': openDrive, 'new-blank': newBlank,
   save: () => save(false), 'save-as': () => save(true), download, 'save-drive': () => saveToDrive(false), 'save-drive-as': () => saveToDrive(true),
   'sig-list': () => (S.mainId ? showSignatures() : toast(t('needDoc'), 'err')),
