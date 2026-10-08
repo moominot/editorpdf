@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "pdf-simple", "runtimeExecutable": "node", "runtimeArgs": ["dev-server.mjs"], "port": 8080 }
+  ]
+}

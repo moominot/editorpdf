@@ -1,0 +1,28 @@
+{
+  "name": "PDF Simple",
+  "short_name": "PDF Simple",
+  "description": "Editor, formularis i signatura de PDF",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14181f",
+  "theme_color": "#1f2937",
+  "icons": [
+    {
+      "src": "img/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/pdf": [
+          ".pdf"
+        ]
+      }
+    }
+  ]
+}

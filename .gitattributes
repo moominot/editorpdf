@@ -1,0 +1,6 @@
+* -text
+*.pdf binary
+*.p12 binary
+*.gz binary
+*.ttf binary
+*.wasm binary

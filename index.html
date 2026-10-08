@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2937">
+  <title>PDF Simple — editor i signatura de PDF</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/pdfjs/web/pdf_viewer.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <defs>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="m5 3 14 8-6 2-2 6z"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></symbol>
+    <symbol id="i-hl" viewBox="0 0 24 24"><path d="m9 11 6 6M4 20l4-1 10-10-3-3L5 16z"/><path d="M14 21h7"/></symbol>
+    <symbol id="i-ul" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4M5 21h14"/></symbol>
+    <symbol id="i-st" viewBox="0 0 24 24"><path d="M16 5a4 4 0 0 0-8 0c0 2 1 3 4 4M4 12h16M8 15c0 3 2 4 4 4s4-1 4-4"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M3 21c3 0 5-1 6-3l9-9-3-3-9 9c-2 1-3 3-3 6z"/><path d="m14 6 3 3"/></symbol>
+    <symbol id="i-img" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></symbol>
+    <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/></symbol>
+    <symbol id="i-edittext" viewBox="0 0 24 24"><path d="M4 7V5h10v2M9 5v10M7 15h4"/><path d="m13 21 1-4 7-7 3 3-7 7z" transform="translate(-3 0)"/></symbol>
+    <symbol id="i-zin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></symbol>
+    <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M8 11h6"/></symbol>
+    <symbol id="i-fitw" viewBox="0 0 24 24"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3M4 5v14M20 5v14"/></symbol>
+    <symbol id="i-fitp" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1"/><path d="M9 8h6M9 12h6"/></symbol>
+    <symbol id="i-rotl" viewBox="0 0 24 24"><path d="M4 4v6h6"/><path d="M4.5 10A8 8 0 1 1 6 17"/></symbol>
+    <symbol id="i-rotr" viewBox="0 0 24 24"><path d="M20 4v6h-6"/><path d="M19.5 10A8 8 0 1 0 18 17"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="1"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></symbol>
+    <symbol id="i-addp" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M12 11v6M9 14h6"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></symbol>
+    <symbol id="i-extract" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></symbol>
+    <symbol id="i-sign" viewBox="0 0 24 24"><path d="M3 18c3 0 4-8 6-8s0 8 3 8 3-5 5-5 1 4 4 4"/><path d="M3 21h18"/></symbol>
+    <symbol id="i-ocr" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></symbol>
+    <symbol id="i-find" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <header id="topbar">
+    <button class="ib mobile-only" id="btn-sidebar" data-i18n-title="pages"><svg><use href="#i-menu"/></svg></button>
+
+    <div class="grp">
+      <div class="menu">
+        <button class="tb" data-menu="menu-open"><svg><use href="#i-open"/></svg><span data-i18n="open">Obre</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="menu-pop" id="menu-open">
+          <button data-act="open-local"><span data-i18n="openLocal">Des de l'ordinador…</span><kbd>Ctrl+O</kbd></button>
+          <button data-act="open-drive"><span data-i18n="openDrive">Des de Google Drive…</span></button>
+          <button data-act="new-blank"><span data-i18n="newBlank">PDF en blanc</span></button>
+        </div>
+      </div>
+      <div class="menu">
+        <button class="tb" data-menu="menu-save"><svg><use href="#i-save"/></svg><span data-i18n="save">Desa</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="menu-pop" id="menu-save">
+          <button data-act="save"><span data-i18n="save">Desa</span><kbd>Ctrl+S</kbd></button>
+          <button data-act="save-as"><span data-i18n="saveAs">Desa com a…</span><kbd>Ctrl+Maj+S</kbd></button>
+          <button data-act="save-drive"><span data-i18n="saveDrive">Desa a Google Drive</span></button>
+          <button data-act="save-drive-as"><span data-i18n="saveDriveAs">Desa a Drive com a…</span></button>
+          <button data-act="download"><span data-i18n="download">Descarrega</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <button class="ib" id="btn-undo" data-i18n-title="undo"><svg><use href="#i-undo"/></svg></button>
+      <button class="ib" id="btn-redo" data-i18n-title="redo"><svg><use href="#i-redo"/></svg></button>
+    </div>
+
+    <div class="grp tools" id="tools">
+      <button class="ib" data-tool="select" data-i18n-title="tSelect"><svg><use href="#i-cursor"/></svg></button>
+      <button class="ib" data-tool="text" data-i18n-title="tText"><svg><use href="#i-text"/></svg></button>
+      <button class="ib" data-tool="hl" data-i18n-title="tHl"><svg><use href="#i-hl"/></svg></button>
+      <button class="ib" data-tool="ul" data-i18n-title="tUl"><svg><use href="#i-ul"/></svg></button>
+      <button class="ib" data-tool="st" data-i18n-title="tSt"><svg><use href="#i-st"/></svg></button>
+      <button class="ib" data-tool="ink" data-i18n-title="tInk"><svg><use href="#i-pen"/></svg></button>
+      <button class="ib" data-tool="rect" data-i18n-title="tRect"><svg><use href="#i-rect"/></svg></button>
+      <button class="ib" data-tool="img" data-i18n-title="tImg"><svg><use href="#i-img"/></svg></button>
+      <button class="ib" data-tool="edittext" data-i18n-title="tEditText"><svg><use href="#i-edittext"/></svg></button>
+    </div>
+
+    <div class="grp zoom">
+      <button class="ib" id="btn-zout" data-i18n-title="zoomOut"><svg><use href="#i-zout"/></svg></button>
+      <input id="zoom-val" class="zoomval" value="100%" aria-label="Zoom" inputmode="numeric">
+      <button class="ib" id="btn-zin" data-i18n-title="zoomIn"><svg><use href="#i-zin"/></svg></button>
+      <button class="ib" id="btn-fitw" data-i18n-title="fitWidth"><svg><use href="#i-fitw"/></svg></button>
+      <button class="ib" id="btn-fitp" data-i18n-title="fitPage"><svg><use href="#i-fitp"/></svg></button>
+    </div>
+
+    <div class="grp">
+      <button class="ib" id="btn-find" data-i18n-title="find"><svg><use href="#i-find"/></svg></button>
+      <div class="menu">
+        <button class="tb accent" data-menu="menu-sign"><svg><use href="#i-sign"/></svg><span data-i18n="sign">Signa</span><svg class="chev"><use href="#i-chev"/></svg></button>
+        <div class="menu-pop right" id="menu-sign">
+          <button data-act="sign-autofirma"><span data-i18n="signAutofirma">AutoFirma (ordinador)</span></button>
+          <button data-act="sign-mobile"><span data-i18n="signMobile">AutoFirma mòbil (servidor intermediari)</span></button>
+          <button data-act="sign-p12"><span data-i18n="signP12">Certificat .p12 / .pfx (al navegador)</span></button>
+          <button data-act="sign-draw"><span data-i18n="signDraw">Signatura manuscrita (visual)</span></button>
+        </div>
+      </div>
+      <button class="ib" id="btn-ocr" data-i18n-title="ocr"><svg><use href="#i-ocr"/></svg></button>
+      <button class="ib" id="btn-settings" data-i18n-title="settings"><svg><use href="#i-gear"/></svg></button>
+    </div>
+  </header>
+
+  <div id="optbar" hidden></div>
+  <div id="findbar" hidden>
+    <input id="find-input" type="search" data-i18n-ph="findPh" placeholder="Cerca al document…">
+    <span id="find-count"></span>
+    <button class="ib" id="find-prev"><svg><use href="#i-up"/></svg></button>
+    <button class="ib" id="find-next"><svg><use href="#i-down"/></svg></button>
+    <button class="ib" id="find-close"><svg><use href="#i-close"/></svg></button>
+  </div>
+
+  <div id="body">
+    <aside id="sidebar">
+      <div id="side-actions">
+        <button class="ib" data-pg="rotl" data-i18n-title="rotL"><svg><use href="#i-rotl"/></svg></button>
+        <button class="ib" data-pg="rotr" data-i18n-title="rotR"><svg><use href="#i-rotr"/></svg></button>
+        <button class="ib" data-pg="dup" data-i18n-title="dupPage"><svg><use href="#i-copy"/></svg></button>
+        <button class="ib" data-pg="blank" data-i18n-title="addBlank"><svg><use href="#i-addp"/></svg></button>
+        <button class="ib" data-pg="import" data-i18n-title="importPages"><svg><use href="#i-import"/></svg></button>
+        <button class="ib" data-pg="extract" data-i18n-title="extractPages"><svg><use href="#i-extract"/></svg></button>
+        <button class="ib danger" data-pg="del" data-i18n-title="delPages"><svg><use href="#i-trash"/></svg></button>
+      </div>
+      <div id="thumbs" tabindex="0"></div>
+    </aside>
+    <div id="sidebar-scrim"></div>
+
+    <main id="viewer">
+      <div id="pages"></div>
+      <div id="empty">
+        <div class="empty-card">
+          <img src="img/icon.svg" alt="" width="72" height="72">
+          <h1>PDF Simple</h1>
+          <p data-i18n="emptyHint">Obre un PDF per començar, o arrossega'l aquí.</p>
+          <div class="empty-btns">
+            <button class="tb accent big" data-act="open-local"><svg><use href="#i-open"/></svg><span data-i18n="openLocal">Des de l'ordinador…</span></button>
+            <button class="tb big" data-act="open-drive"><span data-i18n="openDrive">Des de Google Drive…</span></button>
+            <button class="tb big" data-act="new-blank"><span data-i18n="newBlank">PDF en blanc</span></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer id="status">
+    <span id="st-file"></span>
+    <span id="st-page"></span>
+    <span id="st-msg"></span>
+  </footer>
+</div>
+
+<div id="dropzone" hidden><div data-i18n="dropHere">Deixa anar el PDF aquí</div></div>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+<input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
+<input type="file" id="img-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+<script src="vendor/pdflib/pdf-lib.min.js"></script>
+<script src="vendor/pdflib/fontkit.umd.min.js"></script>
+<script src="vendor/forge/forge.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

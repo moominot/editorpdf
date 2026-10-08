@@ -1,0 +1,5 @@
+_dl/
+node_modules/
+tests/out-*.pdf
+*.log
+tests/pdfs/real/

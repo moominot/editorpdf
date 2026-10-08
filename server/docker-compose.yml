@@ -1,0 +1,15 @@
+services:
+  afirma-relay:
+    build: .
+    container_name: afirma-relay
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"   # només accessible en local; Tailscale Funnel el publica amb HTTPS
+    environment:
+      # Origen de la web (GitHub Pages), p. ex. https://elmeuusuari.github.io. Deixa '*' mentre proves.
+      ALLOWED_ORIGIN: "*"
+      TTL_SECONDS: "600"
+      MAX_BODY_MB: "120"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
