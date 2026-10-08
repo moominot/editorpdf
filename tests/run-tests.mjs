@@ -124,5 +124,18 @@ await test('llegeix p12 modern (AES/SHA-256) i antic (3DES/SHA-1)', async () => 
   assert.throws(() => readP12(new Uint8Array(readFileSync('tests/test.p12')), 'mala'), /Contrasenya/);
 });
 
+console.log('Llistat de signatures');
+await test('llegeix i comprova una signatura pròpia; detecta alteracions', async () => {
+  const { readP12, signPdfWithP12 } = await import('../js/p12sign.js');
+  const { listSignatures } = await import('../js/signatures.js');
+  const p12 = readP12(new Uint8Array(readFileSync('tests/test.p12')), '1234');
+  const signed = await signPdfWithP12(new Uint8Array(readFileSync('tests/pdfs/multipagina.pdf')), p12, { reason: 'Motiu prova', location: 'Palma' });
+  const l = await listSignatures(signed);
+  assert.equal(l.length, 1); assert.equal(l[0].integrity, 'ok'); assert.equal(l[0].signer, 'TONI LLULL PROVA');
+  assert.equal(l[0].reason, 'Motiu prova'); assert.equal(l[0].location, 'Palma'); assert.equal(l[0].coversAll, true);
+  const bad = signed.slice(); bad[200] ^= 0xff;
+  assert.equal((await listSignatures(bad))[0].integrity, 'bad');
+});
+
 console.log(`\n${passed} correctes, ${failed} fallides`);
 process.exit(failed ? 1 : 0);

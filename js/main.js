@@ -15,8 +15,10 @@ import * as files from './files.js';
 import { buildPdf } from './export.js';
 import { cfg, setCfg, getOverrides } from './config.js';
 import './xfa.js';
+import { showSignatures } from './sigpanel.js';
 
 addStrings({
+  spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
   insertedN: ['{0} pàgina(es) inserida(es)', '{0} página(s) insertada(s)', '{0} page(s) inserted'],
   extractName: ['Extret', 'Extraído', 'Extract'],
   pageGoto: ['Ves a la pàgina (1-{0}):', 'Ir a la página (1-{0}):', 'Go to page (1-{0}):'],
@@ -197,6 +199,7 @@ on('restore', () => { emit('selection', null); });
 on('pageSelection', updateUi);
 window.addEventListener('beforeunload', (e) => { if (S.dirty && !window.__suppressUnload) { e.preventDefault(); e.returnValue = ''; } });
 
+$('#st-sigs').addEventListener('click', () => showSignatures());
 $('#st-page').addEventListener('click', async () => {
   if (!S.pages.length) return;
   const v = await promptDlg(t('pageGoto', S.pages.length), String(S.cur + 1), 'number');
@@ -207,6 +210,7 @@ $('#st-page').addEventListener('click', async () => {
 const actions = {
   'open-local': openLocal, 'open-drive': openDrive, 'new-blank': newBlank,
   save: () => save(false), 'save-as': () => save(true), download, 'save-drive': () => saveToDrive(false), 'save-drive-as': () => saveToDrive(true),
+  'sig-list': () => (S.mainId ? showSignatures() : toast(t('needDoc'), 'err')),
   'sign-autofirma': () => signWith('autofirma'), 'sign-mobile': () => signWith('mobile'), 'sign-p12': () => signWith('p12'), 'sign-draw': () => signWith('draw'),
 };
 document.addEventListener('click', (e) => {
