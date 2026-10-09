@@ -15,7 +15,17 @@ addStrings({
 });
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install';
+const TOKEN_KEY = 'pdfsimple.gtoken';
 let token = null, expires = 0, tokenClient = null, pickerReady = false;
+// El token (≈1 h, només abast drive.file) es conserva al navegador fins que caduca per no tornar a demanar l'autorització
+try {
+  const s = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+  if (s && s.expires > Date.now() + 60000 && s.client === cfg('googleClientId')) { token = s.token; expires = s.expires; }
+  else localStorage.removeItem(TOKEN_KEY);
+} catch { /* sense emmagatzematge */ }
+function saveToken() { try { if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expires, client: cfg('googleClientId') })); else localStorage.removeItem(TOKEN_KEY); } catch {} }
+export const hasValidToken = () => !!token && Date.now() < expires;
+export function signOut() { token = null; expires = 0; saveToken(); }
 
 export const isConfigured = () => !!(cfg('googleClientId') && cfg('googleApiKey') && cfg('googleAppId'));
 
@@ -37,7 +47,7 @@ function requestToken(prompt, loginHint) {
     }
     tokenClient.callback = (resp) => {
       if (resp.error) return reject(new Error(t('drAuth') + ': ' + (resp.error_description || resp.error)));
-      token = resp.access_token; expires = Date.now() + (resp.expires_in - 60) * 1000;
+      token = resp.access_token; expires = Date.now() + (resp.expires_in - 60) * 1000; saveToken();
       resolve(token);
     };
     tokenClient.error_callback = (e) => reject(new Error(t('drAuth') + ': ' + (e?.type || e?.message || '')));
@@ -72,7 +82,7 @@ export async function prepare() {
 
 async function api(url, opts = {}, retry = true) {
   const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token } });
-  if (res.status === 401 && retry) { token = null; await requestToken(''); return api(url, opts, false); }
+  if (res.status === 401 && retry) { token = null; saveToken(); await requestToken(''); return api(url, opts, false); }
   return res;
 }
 

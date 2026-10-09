@@ -437,10 +437,11 @@ async function handleDriveLaunch() {
   } catch (e) { console.warn('state', e); }
   if (q.get('id')) ids.push(q.get('id'));
   if (!ids.length) return;
-  const r = await modal({ title: 'Google Drive', body: el('p', { text: t('drOpenWith', ids.length) }), buttons: [{ label: t('cancel'), value: false }, { label: t('drOpenBtn'), value: true, primary: true }], dismissable: false });
+  const drv = await import('./drive.js');
+  const r = drv.hasValidToken() || await modal({ title: 'Google Drive', body: el('p', { text: t('drOpenWith', ids.length) }), buttons: [{ label: t('cancel'), value: false }, { label: t('drOpenBtn'), value: true, primary: true }], dismissable: false });
   if (!r) return;
   try {
-    const drive = await import('./drive.js');
+    const drive = drv;
     await drive.prepareToken(userId);
     const first = await drive.downloadById(ids[0]);
     if (await loadDocument(first.bytes, first.name, { driveId: first.id, driveParents: first.parents, force: true })) {
