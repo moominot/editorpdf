@@ -14,7 +14,7 @@ addStrings({
   drDownloadErr: ['Error en baixar de Google Drive ({0})', 'Error al descargar de Google Drive ({0})', 'Download from Google Drive failed ({0})'],
 });
 
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install';
 let token = null, expires = 0, tokenClient = null, pickerReady = false;
 
 export const isConfigured = () => !!(cfg('googleClientId') && cfg('googleApiKey') && cfg('googleAppId'));
@@ -28,7 +28,7 @@ async function loadLibs() {
 }
 export function preload() { if (isConfigured()) loadLibs().catch(() => {}); }
 
-function requestToken(prompt) {
+function requestToken(prompt, loginHint) {
   return new Promise((resolve, reject) => {
     if (!tokenClient) {
       tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -41,8 +41,25 @@ function requestToken(prompt) {
       resolve(token);
     };
     tokenClient.error_callback = (e) => reject(new Error(t('drAuth') + ': ' + (e?.type || e?.message || '')));
-    tokenClient.requestAccessToken({ prompt });
+    tokenClient.requestAccessToken(loginHint ? { prompt, login_hint: loginHint } : { prompt });
   });
+}
+
+// Només el token (sense Picker): per obrir fitxers per identificador ("Obre amb…" de Drive)
+export async function prepareToken(loginHint) {
+  if (!cfg('googleClientId')) throw new Error(t('drNoCfg'));
+  await loadScript('https://accounts.google.com/gsi/client');
+  if (!token || Date.now() > expires) await requestToken(token ? '' : 'select_account', loginHint);
+  return token;
+}
+
+export async function downloadById(id) {
+  const mr = await api(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,parents,mimeType&supportsAllDrives=true`);
+  if (!mr.ok) throw new Error(t('drDownloadErr', mr.status));
+  const meta = await mr.json();
+  const res = await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`);
+  if (!res.ok) throw new Error(t('drDownloadErr', res.status));
+  return { id: meta.id, name: meta.name, parents: meta.parents || null, mimeType: meta.mimeType, bytes: new Uint8Array(await res.arrayBuffer()) };
 }
 
 // Cal cridar-la des d'un gest d'usuari (clic) la primera vegada, perquè pot obrir una finestra

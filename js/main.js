@@ -21,6 +21,8 @@ addStrings({
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
   installApp: ["Instal·la l'app (Obre amb… des de Windows)", 'Instalar la app (Abrir con… desde Windows)', 'Install app (Open with… from Windows)'],
   installed: ["App instal·lada. Ara, a l'Explorador: clic dret sobre un PDF → Obre amb → PDF Simple.", 'App instalada. Ahora, en el Explorador: clic derecho en un PDF → Abrir con → PDF Simple.', 'App installed. Now in File Explorer: right-click a PDF → Open with → PDF Simple.'],
+  drOpenWith: ['Google Drive vol obrir {0} fitxer(s) amb PDF Simple.', 'Google Drive quiere abrir {0} archivo(s) con PDF Simple.', 'Google Drive wants to open {0} file(s) with PDF Simple.'],
+  drOpenBtn: ['Autoritza i obre', 'Autorizar y abrir', 'Authorize and open'],
   insertedN: ['{0} pàgina(es) inserida(es)', '{0} página(s) insertada(s)', '{0} page(s) inserted'],
   extractName: ['Extret', 'Extraído', 'Extract'],
   pageGoto: ['Ves a la pàgina (1-{0}):', 'Ir a la página (1-{0}):', 'Go to page (1-{0}):'],
@@ -425,8 +427,31 @@ updateUi();
 if ('serviceWorker' in navigator && location.protocol !== 'file:' && !['localhost', '127.0.0.1'].includes(location.hostname)) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
-// Càrrega per URL de prova: ?pdf=ruta/relativa.pdf (només per a depuració)
+// "Obre amb…" de Google Drive: Drive crida l'app amb ?state={"ids":[...],"action":"open","userId":...}
 const q = new URLSearchParams(location.search);
+async function handleDriveLaunch() {
+  let ids = [], userId = null;
+  try {
+    const st = JSON.parse(q.get('state') || 'null');
+    if (st) { ids = st.ids || (st.id ? [st.id] : []); userId = st.userId || null; if (st.action && st.action !== 'open') return; }
+  } catch (e) { console.warn('state', e); }
+  if (q.get('id')) ids.push(q.get('id'));
+  if (!ids.length) return;
+  const r = await modal({ title: 'Google Drive', body: el('p', { text: t('drOpenWith', ids.length) }), buttons: [{ label: t('cancel'), value: false }, { label: t('drOpenBtn'), value: true, primary: true }], dismissable: false });
+  if (!r) return;
+  try {
+    const drive = await import('./drive.js');
+    await drive.prepareToken(userId);
+    const first = await drive.downloadById(ids[0]);
+    if (await loadDocument(first.bytes, first.name, { driveId: first.id, driveParents: first.parents, force: true })) {
+      history.replaceState(null, '', location.pathname);
+      for (const id of ids.slice(1)) { const f = await drive.downloadById(id); await pageops.importPages(f.bytes, f.name, S.pages.length - 1, askPassword); }
+    }
+  } catch (e) { console.error(e); toast(String(e.message || e), 'err', 8000); }
+}
+if (q.get('state') || q.get('id')) handleDriveLaunch();
+
+// Càrrega per URL de prova: ?pdf=ruta/relativa.pdf (només per a depuració)
 if (q.get('pdf') && new URL(q.get('pdf'), location.href).origin === location.origin) {
   fetch(q.get('pdf')).then((r) => r.arrayBuffer()).then((b) => loadDocument(new Uint8Array(b), q.get('pdf').split('/').pop(), { force: true }));
 }
