@@ -69,12 +69,12 @@ L'AutoFirma del mòbil no obre cap port local: intercanvia el document amb un *s
 cd server
 docker compose up -d --build
 # publica'l amb HTTPS vàlid amb Tailscale Funnel (al servidor Linux):
-sudo tailscale funnel --bg 8090
-tailscale funnel status          # mostra l'adreça https://<màquina>.<xarxa>.ts.net
+sudo tailscale funnel --bg --https=10000 8099   # Funnel només admet els ports 443, 8443 i 10000
+tailscale funnel status          # mostra l'adreça https://<màquina>.<xarxa>.ts.net:10000
 ```
 
 1. A `server/docker-compose.yml` posa `ALLOWED_ORIGIN` al teu origen de GitHub Pages (p. ex. `https://usuari.github.io`) i torna a fer `docker compose up -d`.
-2. A l'app: **Ajustos → Servidor intermediari** = `https://<màquina>.<xarxa>.ts.net` (sense `/` final).
+2. A l'app: **Ajustos → Servidor intermediari** = `https://<màquina>.<xarxa>.ts.net:10000` (sense `/` final).
 3. Instal·la **AutoFirma** al mòbil (Android/iOS), importa el teu certificat o fes servir el DNIe per NFC.
 4. Al mòbil obre la web → **Signa → AutoFirma mòbil**. S'obre l'app AutoFirma, signes, tornes a la pestanya i el PDF signat apareix.
 

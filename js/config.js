@@ -4,7 +4,7 @@ export const DEFAULTS = {
   googleClientId: '189007098864-c3pccnknc1805hlqk30vlmo7r3pqmkq3.apps.googleusercontent.com', // ID de client OAuth (tipus "Aplicació web")
   googleApiKey: 'AIzaSyDdOO7KQpOpTI8f2YTuSC9SoQvwfZyTGyY', // clau d'API (necessària per al Google Picker)
   googleAppId: '189007098864', // número del projecte de Google Cloud (prefix del Client ID)
-  relayUrl: '',         // URL del servidor intermediari per a AutoFirma mòbil (p. ex. https://servidor.tailnet.ts.net)
+  relayUrl: 'https://classificat-home.taile04fba.ts.net:10000', // URL del servidor intermediari per a AutoFirma mòbil (p. ex. https://servidor.tailnet.ts.net)
   ocrLangs: 'cat+spa+eng',
 };
 const KEY = 'pdfsimple.cfg';
