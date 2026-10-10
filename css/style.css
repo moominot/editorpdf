@@ -183,3 +183,5 @@ textarea.fld { resize: none; line-height: 1.15; }
 
 #sidebar.drop-target { outline: 3px dashed var(--accent); outline-offset: -3px; background: rgba(37,99,235,.12); }
 #dropzone.side { display: none; }
+#side-import { margin: 6px; flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; }
+#side-import svg { width: 16px; height: 16px; }

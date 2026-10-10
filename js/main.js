@@ -278,7 +278,7 @@ async function toggleFind() {
 }
 
 // ------------------------------------------------------------------ operacions de pàgines (barra lateral)
-$('#side-actions').addEventListener('click', async (e) => {
+$('#sidebar').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-pg]'); if (!b) return;
   if (!S.mainId) return toast(t('needDoc'), 'err');
   if (S.sources.get(S.mainId)?.isXfa) return toast(t('xfaOnly'), 'err');
