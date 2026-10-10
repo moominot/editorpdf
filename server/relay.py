@@ -21,6 +21,12 @@ MAX_BODY = int(os.environ.get('MAX_BODY_MB', '120')) * 1024 * 1024
 MAX_ITEMS = int(os.environ.get('MAX_ITEMS', '200'))
 ALLOW_ORIGIN = os.environ.get('ALLOWED_ORIGIN', '*')       # p. ex. https://usuari.github.io
 RATE = int(os.environ.get('RATE_PER_MINUTE', '240'))       # peticions per IP i minut
+LOG = os.environ.get('LOG', '1') == '1'                    # registra operacions (mai contingut)
+
+
+def log(*a):
+    if LOG:
+        print(time.strftime('%H:%M:%S'), *a, flush=True)
 
 ID_RE = re.compile(r'^[A-Za-z0-9_-]{8,64}$')
 store = {}   # id -> (timestamp, text)
@@ -68,6 +74,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, text, status=200):
         body = text.encode('utf-8')
+        if getattr(self, '_logged', False):
+            log('  ->', status, text[:7].strip(), 'len=%d' % len(body))
         self.send_response(status)
         self.send_header('Content-Type', 'text/plain; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
@@ -110,6 +118,9 @@ class Handler(BaseHTTPRequestHandler):
                     params[k] = v
         op = params.get('op')
         path = u.path.lower()
+        self._logged = op != 'check'
+        if op != 'check':
+            log(self.command, u.path, 'op=%s' % op, 'id=%s…' % (params.get('id') or '')[:4], 'bytes=%d' % len(body), 'ua=%s' % (self.headers.get('User-Agent') or '')[:40])
         if op is None:
             return self._send(err('ERR-00'))
         if op == 'check':

@@ -159,7 +159,8 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
     ['ver', PROTOCOL_VERSION], ['op', 'sign'], ['id', rid], ['appname', location.hostname || 'pdf-simple'],
     ['key', legDes], ['cipher', cipherParam], ['stservlet', storage],
   ].filter(Boolean);
-  const xml = '<sign>' + entries.map(([k, v]) => `<e k="${k}" v="${v}"/>`).join('') + '</sign>';
+  // AutoFirma aplica URLDecoder a cada valor: sense codificar, un '+' del base64 es convertiria en espai i el JSON de xifratge quedaria malmès
+  const xml = '<sign>' + entries.map(([k, v]) => `<e k="${k}" v="${encodeURIComponent(v)}"/>`).join('') + '</sign>';
   onStatus('upload');
   const enc = await aesEncrypt(key, iv, new TextEncoder().encode(xml));
   const put = await fetch(storage, {

@@ -82,7 +82,8 @@ await test('signViaRelay: cicle de pujada, signatura simulada i recuperació', a
     const enc = fromUrlSafe(store.get(q.get('fileid')));
     const xml = new TextDecoder().decode(new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, await aesKey(key), base64ToBytes(enc))));
     store.delete(q.get('fileid'));
-    const kv = {}; for (const m of xml.matchAll(/<e k="([^"]+)" v="([^"]*)"\/>/g)) kv[m[1]] = m[2];
+    const kv = {}; for (const m of xml.matchAll(/<e k="([^"]+)" v="([^"]*)"\/>/g)) kv[m[1]] = decodeURIComponent(m[2].replace(/\+/g, ' ')); // com java.net.URLDecoder
+    assert.equal(JSON.parse(atob(kv.cipher)).key, cfg.key); // el JSON de xifratge sobreviu al URLDecoder
     assert.equal(kv.op, 'sign'); assert.equal(kv.format, 'PAdES'); assert.equal(kv.id, q.get('rid'));
     assert.equal(atob(kv.properties).split('\n').find((l) => l.startsWith('signReason=')), 'signReason=Prova');
     const pdf = base64ToBytes(fromUrlSafe(kv.dat));
