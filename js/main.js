@@ -99,17 +99,43 @@ export async function loadDocument(bytes, name, extra = {}) {
 }
 window.__app.loadDocument = loadDocument;
 
+// Si ja hi ha un document obert, el nou s'obre en una finestra/pestanya nova
+const NEW_WIN_KEY = 'pdfsimple-child';
+export function openInNewWindow(bytes, name, extra = {}) {
+  const w = window.open(location.pathname + '#' + NEW_WIN_KEY, '_blank');
+  if (!w) return false;
+  const onMsg = (e) => {
+    if (e.source !== w || e.data?.type !== 'pdfsimple-ready') return;
+    window.removeEventListener('message', onMsg);
+    w.postMessage({ type: 'pdfsimple-open', bytes, name, extra: { handle: extra.handle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null } }, location.origin);
+  };
+  window.addEventListener('message', onMsg);
+  return true;
+}
+async function openDocument(bytes, name, extra = {}) {
+  if (S.mainId && !extra.force && openInNewWindow(bytes, name, extra)) return true;
+  return loadDocument(bytes, name, extra);
+}
+if (window.opener && location.hash === '#' + NEW_WIN_KEY) {
+  history.replaceState(null, '', location.pathname + location.search);
+  window.addEventListener('message', (e) => {
+    if (e.source !== window.opener || e.origin !== location.origin || e.data?.type !== 'pdfsimple-open') return;
+    loadDocument(new Uint8Array(e.data.bytes), e.data.name, e.data.extra || {});
+  });
+  try { window.opener.postMessage({ type: 'pdfsimple-ready' }, location.origin); } catch {}
+}
+
 async function openLocal() {
   try {
     const f = await files.pickLocalPdf(); if (!f) return;
-    await loadDocument(f.bytes, f.name, { handle: f.handle });
+    await openDocument(f.bytes, f.name, { handle: f.handle });
   } catch (e) { toast(t('errOpen', e.message || e), 'err'); }
 }
 async function openDrive() {
   try {
     const drive = await import('./drive.js');
     const f = await drive.pickAndDownload(); if (!f) return;
-    await loadDocument(f.bytes, f.name, { driveId: f.id, driveParents: f.parents });
+    await openDocument(f.bytes, f.name, { driveId: f.id, driveParents: f.parents });
   } catch (e) { toast(String(e.message || e), 'err', 7000); }
 }
 async function newBlank() {
@@ -330,13 +356,13 @@ window.addEventListener('drop', async (e) => {
   if (!file) return;
   if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) return toast(t('notPdf'), 'err');
   const bytes = await readFileBytes(file);
-  await loadDocument(bytes, file.name, { handle });
+  await openDocument(bytes, file.name, { handle });
 });
 if ('launchQueue' in window) {
   window.launchQueue.setConsumer(async (p) => {
     if (!p.files?.length) return;
     const f = await files.fileFromHandleOrFile(p.files[0]);
-    await loadDocument(f.bytes, f.name, { handle: f.handle });
+    await openDocument(f.bytes, f.name, { handle: f.handle });
   });
 }
 

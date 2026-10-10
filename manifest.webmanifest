@@ -55,10 +55,10 @@
           "type": "image/png"
         }
       ],
-      "launch_type": "single-client"
+      "launch_type": "multiple-clients"
     }
   ],
   "launch_handler": {
-    "client_mode": "focus-existing"
+    "client_mode": "navigate-new"
   }
 }
