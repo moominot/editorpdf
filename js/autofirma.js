@@ -130,6 +130,28 @@ export async function checkRelay(base) {
   return true;
 }
 
+// DES/ECB sense farciment de l'AutoFirma (compatibilitat amb el JavaScript oficial: la primera pujada va xifrada amb DES)
+const bin2u8 = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+const u82bin = (u) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return s; };
+export function desEncrypt(keyStr, data) {
+  const forge = window.forge;
+  const pad = (8 - (data.length % 8)) % 8;
+  const padded = new Uint8Array(data.length + pad); padded.set(data);
+  const c = forge.cipher.createCipher('DES-ECB', forge.util.createBuffer(keyStr));
+  c.start(); c.update(forge.util.createBuffer(u82bin(padded))); c.finish(() => true);
+  return pad + '.' + b64urlOfBytes(bin2u8(c.output.getBytes()));
+}
+export function desDecrypt(keyStr, text) {
+  const forge = window.forge;
+  const dot = text.indexOf('.');
+  const pad = dot === 1 ? parseInt(text.slice(0, 1), 10) : 0;
+  const raw = base64ToBytes(fromUrlSafe(text.slice(dot === 1 ? 2 : 0)));
+  const c = forge.cipher.createDecipher('DES-ECB', forge.util.createBuffer(keyStr));
+  c.start(); c.update(forge.util.createBuffer(u82bin(raw))); c.finish(() => true);
+  const out = bin2u8(c.output.getBytes());
+  return out.subarray(0, out.length - pad);
+}
+
 async function aesEncrypt(keyBytes, iv, data) {
   const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']);
   return new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, k, data));
@@ -162,10 +184,11 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
   // AutoFirma aplica URLDecoder a cada valor: sense codificar, un '+' del base64 es convertiria en espai i el JSON de xifratge quedaria malmès
   const xml = '<sign>' + entries.map(([k, v]) => `<e k="${k}" v="${encodeURIComponent(v)}"/>`).join('') + '</sign>';
   onStatus('upload');
-  const enc = await aesEncrypt(key, iv, new TextEncoder().encode(xml));
+  // Igual que el client oficial: la primera pujada va xifrada amb DES (clau 'key'), i s'anuncia AES per a la resposta
+  const encText = desEncrypt(legDes, new TextEncoder().encode(xml));
   const put = await fetch(storage, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `op=put&v=1_0&id=${fileId}&dat=${b64urlOfBytes(enc)}`, signal,
+    body: `op=put&v=1_0&id=${fileId}&dat=${encText}`, signal,
   });
   const putTxt = (await put.text()).trim();
   if (putTxt !== 'OK') throw new AutoFirmaError('El servidor intermedi ha rebutjat les dades: ' + putTxt, 'UPLOAD', 'error');
@@ -200,7 +223,10 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
       const err = parseError(txt); if (err) throw err;
       const parts = txt.split('|');
       const dec = [];
-      for (const p of parts) dec.push(await aesDecrypt(key, iv, base64ToBytes(fromUrlSafe(p))));
+      for (const p of parts) {
+        if (/^d./.test(p)) dec.push(desDecrypt(legDes, p)); // resposta amb DES (apps antigues)
+        else dec.push(await aesDecrypt(key, iv, base64ToBytes(fromUrlSafe(p))));
+      }
       // Els valors descifrats són els bytes en cru (certificat DER, PDF signat)
       let certDer = null, sig;
       if (dec.length === 1) sig = dec[0]; else { certDer = dec[0]; sig = dec[1]; }

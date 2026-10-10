@@ -79,8 +79,11 @@ await test('signViaRelay: cicle de pujada, signatura simulada i recuperació', a
     const q = new URL(url.replace(/^intent:/, 'afirma:').split('#Intent')[0]).searchParams;
     const cfg = JSON.parse(atob(q.get('cipher')));
     const key = base64ToBytes(cfg.key), iv = base64ToBytes(cfg.iv);
-    const enc = fromUrlSafe(store.get(q.get('fileid')));
-    const xml = new TextDecoder().decode(new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, await aesKey(key), base64ToBytes(enc))));
+    const raw = store.get(q.get('fileid'));
+    // com AesServerCipher: primer AES i, si falla, DES (clau 'key' de la URL, format "N.base64")
+    let xml;
+    try { xml = new TextDecoder().decode(new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, await aesKey(key), base64ToBytes(fromUrlSafe(raw))))); }
+    catch { xml = new TextDecoder().decode((await import('../js/autofirma.js')).desDecrypt(q.get('key'), raw)); }
     store.delete(q.get('fileid'));
     const kv = {}; for (const m of xml.matchAll(/<e k="([^"]+)" v="([^"]*)"\/>/g)) kv[m[1]] = decodeURIComponent(m[2].replace(/\+/g, ' ')); // com java.net.URLDecoder
     assert.equal(JSON.parse(atob(kv.cipher)).key, cfg.key); // el JSON de xifratge sobreviu al URLDecoder
