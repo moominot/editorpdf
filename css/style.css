@@ -180,3 +180,6 @@ textarea.fld { resize: none; line-height: 1.15; }
   .zoomval { width: 48px; }
   kbd { display: none; }
 }
+
+#sidebar.drop-target { outline: 3px dashed var(--accent); outline-offset: -3px; background: rgba(37,99,235,.12); }
+#dropzone.side { display: none; }

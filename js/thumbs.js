@@ -86,6 +86,16 @@ export class Thumbs {
     it.renderedSig = sig;
   }
 
+  // Índex d'inserció (0..n) segons la coordenada Y de pantalla
+  insertIndexAt(y) {
+    for (let i = 0; i < S.pages.length; i++) {
+      const node = this.items.get(S.pages[i].id)?.el; if (!node) continue;
+      const r = node.getBoundingClientRect();
+      if (y < r.top + r.height / 2) return i;
+    }
+    return S.pages.length;
+  }
+
   updateSelection() {
     const cur = S.pages[S.cur];
     for (const [pid, it] of this.items) {

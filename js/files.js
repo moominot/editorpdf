@@ -24,18 +24,25 @@ export async function pickLocalPdf() {
 }
 
 export async function pickPdfForImport() {
-  // sempre un fitxer nou, sense handle
+  // un o diversos fitxers nous, sense handle
   if (hasFSA) {
     try {
-      const [handle] = await window.showOpenFilePicker({ types: PDF_TYPES, multiple: false });
-      const file = await handle.getFile();
-      return { bytes: await readFileBytes(file), name: file.name };
+      const handles = await window.showOpenFilePicker({ types: PDF_TYPES, multiple: true });
+      const out = [];
+      for (const h of handles) { const file = await h.getFile(); out.push({ bytes: await readFileBytes(file), name: file.name }); }
+      return out;
     } catch (e) { if (e?.name === 'AbortError') return null; throw e; }
   }
   return new Promise((resolve) => {
     const inp = document.getElementById('file-input');
     inp.value = '';
-    inp.onchange = async () => { const f = inp.files[0]; resolve(f ? { bytes: await readFileBytes(f), name: f.name } : null); };
+    inp.multiple = true;
+    inp.onchange = async () => {
+      inp.multiple = false;
+      const out = [];
+      for (const f of inp.files) out.push({ bytes: await readFileBytes(f), name: f.name });
+      resolve(out.length ? out : null);
+    };
     inp.click();
   });
 }

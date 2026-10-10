@@ -284,14 +284,18 @@ $('#side-actions').addEventListener('click', async (e) => {
 
 async function importFromFile(afterIdx, preset) {
   try {
-    const f = preset || (await files.pickPdfForImport()); if (!f) return;
-    const n = await pageops.importPages(f.bytes, f.name, afterIdx, askPassword, async (src) => {
-      if (src.numPages === 1) return [0];
-      const v = await promptDlg(t('importOf', src.name, src.numPages) + '\n' + t('importRange'), '');
-      if (v == null) return null;
-      return pageops.parseRange(v, src.numPages);
-    });
-    if (n) toast(t('insertedN', n), 'ok');
+    const list = preset || (await files.pickPdfForImport()); if (!list || !list.length) return;
+    let total = 0, at = afterIdx;
+    for (const f of list) {
+      const n = await pageops.importPages(f.bytes, f.name, at, askPassword, async (src) => {
+        if (src.numPages === 1) return [0];
+        const v = await promptDlg(t('importOf', src.name, src.numPages) + '\n' + t('importRange'), '');
+        if (v == null) return null;
+        return pageops.parseRange(v, src.numPages);
+      });
+      total += n; at += n;
+    }
+    if (total) toast(t('insertedN', total), 'ok');
   } catch (e) { toast(t('errOpen', e.message || e), 'err'); }
 }
 
@@ -300,23 +304,33 @@ let dragDepth = 0;
 const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 window.addEventListener('dragenter', (e) => { if (hasFiles(e)) { dragDepth++; $('#dropzone').hidden = false; } });
 window.addEventListener('dragleave', (e) => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; $('#dropzone').hidden = true; } });
-window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+const sideDrag = (e) => {
+  const on = !!(S.mainId && hasFiles(e) && e.target.closest?.('#sidebar'));
+  $('#sidebar').classList.toggle('drop-target', on);
+  $('#dropzone').classList.toggle('side', on);
+  return on;
+};
+window.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); sideDrag(e); } });
 window.addEventListener('drop', async (e) => {
   if (!hasFiles(e)) return;
-  e.preventDefault(); dragDepth = 0; $('#dropzone').hidden = true;
+  e.preventDefault(); dragDepth = 0; $('#dropzone').hidden = true; $('#sidebar').classList.remove('drop-target');
   const item = e.dataTransfer.items?.[0];
   const imgFile = [...e.dataTransfer.files].find((f) => f.type.startsWith('image/'));
   if (imgFile && S.mainId) { const { addImageFile } = await import('./tools.js'); return addImageFile(imgFile); }
+  const overSidebar = e.target.closest?.('#sidebar');
+  if (S.mainId && overSidebar) {
+    const pdfs = [...e.dataTransfer.files].filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+    if (!pdfs.length) return toast(t('notPdf'), 'err');
+    const list = [];
+    for (const f of pdfs) list.push({ bytes: await readFileBytes(f), name: f.name });
+    return importFromFile(thumbs.insertIndexAt(e.clientY) - 1, list);
+  }
   let handle = null, file = e.dataTransfer.files[0];
   try { if (item?.getAsFileSystemHandle) { const h = await item.getAsFileSystemHandle(); if (h?.kind === 'file') handle = h; } } catch {}
   if (!file) return;
   if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) return toast(t('notPdf'), 'err');
   const bytes = await readFileBytes(file);
-  const overSidebar = e.target.closest?.('#sidebar');
-  if (S.mainId && overSidebar) {
-    const ids = pageops.selectionOrCurrent();
-    await importFromFile(Math.max(...ids.map((id) => pageIndex(id))), { bytes, name: file.name });
-  } else await loadDocument(bytes, file.name, { handle });
+  await loadDocument(bytes, file.name, { handle });
 });
 if ('launchQueue' in window) {
   window.launchQueue.setConsumer(async (p) => {
