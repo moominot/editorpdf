@@ -5,6 +5,9 @@ import { el, clamp } from './util.js';
 import { movePages } from './pageops.js';
 
 const THUMB_W = 124;
+// Arrossegar pàgines entre finestres: el ratolí usa el drag natiu del navegador (HTML5)
+export const PAGES_MIME = 'application/x-pdfsimple-pages';
+export const WIN_ID = Math.random().toString(36).slice(2);
 
 export class Thumbs {
   constructor(list, viewer) {
@@ -18,6 +21,11 @@ export class Thumbs {
         if (it.visible && it.sig !== it.renderedSig) this.enqueue(it);
       }
     }, { root: list, rootMargin: '400px 0px' });
+    this.dragIds = null; this.dropLine = null;
+    this.onForeignDrop = null; // (data, afterIdx) => Promise: pàgines arrossegades des d'una altra finestra
+    list.addEventListener('dragover', (e) => this.onDragOver(e));
+    list.addEventListener('dragleave', (e) => { if (!list.contains(e.relatedTarget)) this.hideLine(); });
+    list.addEventListener('drop', (e) => this.onDrop(e));
     list.addEventListener('keydown', (e) => this.onKey(e));
     list.addEventListener('pointerdown', (e) => { if (e.target === list) { S.pageSel = new Set(); this.updateSelection(); emit('pageSelection'); } });
   }
@@ -50,6 +58,8 @@ export class Thumbs {
     node._it = it;
     node.addEventListener('pointerdown', (ev) => this.onDown(ev, it));
     node.addEventListener('dblclick', () => this.viewer.scrollToPage(pageIndex(e.id)));
+    node.addEventListener('dragstart', (ev) => this.onDragStart(ev, it));
+    node.addEventListener('dragend', () => this.endDrag());
     this.items.set(e.id, it);
     this.io.observe(node);
     return it;
@@ -134,7 +144,57 @@ export class Thumbs {
     }
   }
 
-  // Arrossegar per reordenar (ratolí: tot l'element; tàctil: l'agafador)
+  onDragStart(ev, it) {
+    if (!it.el.draggable) return ev.preventDefault();
+    let ids = S.pages.filter((p) => S.pageSel.has(p.id)).map((p) => p.id);
+    if (!ids.includes(it.pid)) ids = [it.pid];
+    this.dragIds = ids;
+    ev.dataTransfer.setData(PAGES_MIME, JSON.stringify({ win: WIN_ID, ids }));
+    ev.dataTransfer.effectAllowed = 'copyMove';
+    const ghost = el('div', { class: 'th-ghost', style: 'left:-500px;top:0' });
+    const c = document.createElement('canvas'); c.width = it.canvas.width; c.height = it.canvas.height; c.getContext('2d').drawImage(it.canvas, 0, 0);
+    c.style.width = Math.min(110, parseFloat(it.canvas.style.width) || 110) + 'px';
+    ghost.append(c); if (ids.length > 1) ghost.append(el('span', { class: 'cnt', text: ids.length }));
+    document.body.append(ghost);
+    ev.dataTransfer.setDragImage(ghost, 10, 10);
+    setTimeout(() => { ghost.remove(); ids.forEach((id) => this.items.get(id)?.el.classList.add('dragging')); }, 0);
+  }
+  endDrag() {
+    (this.dragIds || []).forEach((id) => this.items.get(id)?.el.classList.remove('dragging'));
+    this.dragIds = null; this.hideLine();
+  }
+  hideLine() { this.dropLine?.remove(); this.dropLine = null; }
+  // [índex d'inserció, posició Y de la línia dins la llista]
+  dropPos(y) {
+    let idx = S.pages.length, top = null;
+    for (let i = 0; i < S.pages.length; i++) {
+      const node = this.items.get(S.pages[i].id)?.el; if (!node) continue;
+      const r = node.getBoundingClientRect();
+      if (y < r.top + r.height / 2) { idx = i; top = node.offsetTop - 5; break; }
+    }
+    if (top == null) { const last = S.pages.length && this.items.get(S.pages[S.pages.length - 1].id)?.el; top = last ? last.offsetTop + last.offsetHeight + 1 : 0; }
+    return [idx, top];
+  }
+  onDragOver(ev) {
+    if (!S.mainId || !ev.dataTransfer.types.includes(PAGES_MIME)) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = this.dragIds ? 'move' : 'copy';
+    if (!this.dropLine) { this.dropLine = el('div', { class: 'drop-line' }); this.list.append(this.dropLine); }
+    this.dropLine.style.top = this.dropPos(ev.clientY)[1] + 'px';
+    const lr = this.list.getBoundingClientRect();
+    if (ev.clientY < lr.top + 40) this.list.scrollTop -= 14; else if (ev.clientY > lr.bottom - 40) this.list.scrollTop += 14;
+  }
+  onDrop(ev) {
+    if (!S.mainId || !ev.dataTransfer.types.includes(PAGES_MIME)) return;
+    ev.preventDefault();
+    const [idx] = this.dropPos(ev.clientY);
+    this.hideLine();
+    let data; try { data = JSON.parse(ev.dataTransfer.getData(PAGES_MIME)); } catch { return; }
+    if (data.win === WIN_ID) movePages(data.ids, idx);
+    else this.onForeignDrop?.(data, idx - 1);
+  }
+
+  // Arrossegar per reordenar (tàctil: l'agafador; el ratolí usa el drag natiu de dalt)
   onDown(ev, it) {
     if (ev.button > 0) return;
     const touch = ev.pointerType === 'touch';
@@ -153,7 +213,15 @@ export class Thumbs {
     const keepGroup = S.pageSel.has(it.pid) && S.pageSel.size > 1 && !modifier;
     if (!keepGroup) this.select(it.pid, ev);
     if (!modifier && !touch) this.viewer.scrollToPage(pageIndex(it.pid));
-    if (touch) ev.preventDefault();
+    it.el.draggable = !touch;
+    if (!touch) {
+      // Ratolí: l'arrossegament és natiu (dragstart). Sense arrossegar, un clic sobre un grup el redueix a aquesta pàgina.
+      const off = () => { window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', off); };
+      const up = () => { off(); if (keepGroup) this.select(it.pid, {}); };
+      window.addEventListener('pointerup', up); window.addEventListener('pointercancel', off);
+      return;
+    }
+    ev.preventDefault();
     let dragging = false, ghost = null, line = null, ids = [], insertIdx = 0, raf = 0, lastY = sy;
 
     const calcInsert = (y) => {

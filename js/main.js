@@ -5,7 +5,7 @@ import { initLang, t, setLang, getLang, applyI18n, addStrings } from './i18n.js'
 import { toast, setStatus, modal, confirmDlg, alertDlg, promptDlg, progressDlg, initMenus } from './ui.js';
 import { openSource, clearInfoCache } from './pdfsource.js';
 import { Viewer, hooks } from './viewer.js';
-import { Thumbs } from './thumbs.js';
+import { Thumbs, WIN_ID } from './thumbs.js';
 import * as objects from './objects.js';
 import { clearFormCache } from './forms.js';
 import { initOptbar } from './optbar.js';
@@ -323,6 +323,40 @@ async function importFromFile(afterIdx, preset) {
     }
     if (total) toast(t('insertedN', total), 'ok');
   } catch (e) { toast(t('errOpen', e.message || e), 'err'); }
+}
+
+// ------------------------------------------------------------------ copiar pàgines entre finestres (arrossegant la barra lateral)
+// La finestra de destinació demana les pàgines a l'origen, que les empaqueta en un PDF petit.
+const pagesChan = typeof BroadcastChannel === 'function' ? new BroadcastChannel('pdfsimple-pages') : null;
+const pendingPages = new Map();
+if (pagesChan) {
+  pagesChan.onmessage = async ({ data: m }) => {
+    if (m.type === 'req' && m.to === WIN_ID) {
+      try {
+        const main = S.sources.get(S.mainId);
+        if (!main || main.isXfa) throw new Error('No disponible');
+        const ids = S.pages.filter((p) => m.ids.includes(p.id)).map((p) => p.id);
+        if (!ids.length) throw new Error('No disponible');
+        pagesChan.postMessage({ type: 'res', req: m.req, bytes: await buildPdf({ onlyPages: ids }) });
+      } catch (err) { pagesChan.postMessage({ type: 'res', req: m.req, error: String(err.message || err) }); }
+    } else if (m.type === 'res') {
+      const p = pendingPages.get(m.req); if (p) { pendingPages.delete(m.req); p(m); }
+    }
+  };
+  thumbs.onForeignDrop = async (data, afterIdx) => {
+    const req = Math.random().toString(36).slice(2);
+    const prog = progressDlg(t('saving'));
+    try {
+      const res = await new Promise((resolve, reject) => {
+        const to = setTimeout(() => { pendingPages.delete(req); reject(new Error('Sense resposta de l\'altra finestra')); }, 30000);
+        pendingPages.set(req, (m) => { clearTimeout(to); m.error ? reject(new Error(m.error)) : resolve(m); });
+        pagesChan.postMessage({ type: 'req', to: data.win, req, ids: data.ids });
+      });
+      const n = await pageops.importPages(new Uint8Array(res.bytes), 'pàgines copiades', afterIdx, askPassword, null);
+      if (n) toast(t('insertedN', n), 'ok');
+    } catch (e) { toast(t('errOpen', e.message || e), 'err'); }
+    finally { prog.close(); }
+  };
 }
 
 // ------------------------------------------------------------------ arrossegar i deixar anar fitxers
