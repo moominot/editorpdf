@@ -70,9 +70,12 @@ export async function run() {
     o.addObject(pid, { type: 'rect', x: 100, y: 100, w: 80, h: 30, stroke: '#0000ff', fill: '#ffff99', width: 1, rot: 30 }, false);
     o.addObject(pid, { type: 'text', x: 100, y: 200, w: 120, h: 20, text: 'Girat', size: 14, color: '#000000', font: 'Helvetica', rot: 90 }, false);
     const d = await PDFDocument.load(await ex.buildPdf());
-    const cs = d.getPages()[0].node.Contents(); const txt = new TextDecoder('latin1').decode(cs.asArray ? cs.asArray().map((r) => d.context.lookup(r).getContents()).reduce((a, b) => new Uint8Array([...a, ...b]), new Uint8Array()) : cs.getContents());
-    return (txt.match(/ cm
-/g) || []).length >= 2 || 'no hi ha matrius cm per als objectes girats';
+    const pg = d.getPages()[0];
+    const parts = pg.node.normalizedEntries().Contents; // PDFArray de fluxos
+    const refs = parts.asArray ? parts.asArray() : [parts];
+    let txt = '';
+    for (const r of refs) txt += (() => { const st = d.context.lookup(r); try { return new TextDecoder('latin1').decode(window.PDFLib.decodePDFRawStream(st).decode()); } catch { return ''; } })() + ' ';
+    return (txt.match(/ cm\s/g) || []).length >= 2 || 'no hi ha matrius cm per als objectes girats';
   });
 
   await check('insertar pàgina en blanc i duplicar', async () => {
