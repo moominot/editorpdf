@@ -64,6 +64,17 @@ export async function run() {
     return !!orig && !t2.some((s) => s.startsWith('Línia 3: Lorem')) && t2.some((s) => s.includes('Línia 3: NOU')) && t2.some((s) => s.startsWith('Línia 4:')) || JSON.stringify(t2.slice(0, 6));
   });
 
+  await check('objectes girats: es desen amb matriu de rotació', async () => {
+    await load('/tests/pdfs/multipagina.pdf');
+    const pid = S.pages[0].id, o = A.objects;
+    o.addObject(pid, { type: 'rect', x: 100, y: 100, w: 80, h: 30, stroke: '#0000ff', fill: '#ffff99', width: 1, rot: 30 }, false);
+    o.addObject(pid, { type: 'text', x: 100, y: 200, w: 120, h: 20, text: 'Girat', size: 14, color: '#000000', font: 'Helvetica', rot: 90 }, false);
+    const d = await PDFDocument.load(await ex.buildPdf());
+    const cs = d.getPages()[0].node.Contents(); const txt = new TextDecoder('latin1').decode(cs.asArray ? cs.asArray().map((r) => d.context.lookup(r).getContents()).reduce((a, b) => new Uint8Array([...a, ...b]), new Uint8Array()) : cs.getContents());
+    return (txt.match(/ cm
+/g) || []).length >= 2 || 'no hi ha matrius cm per als objectes girats';
+  });
+
   await check('insertar pàgina en blanc i duplicar', async () => {
     await load('/tests/pdfs/multipagina.pdf');
     await ops.insertBlank(0); ops.duplicatePages([S.pages[0].id]);

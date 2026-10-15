@@ -92,6 +92,15 @@ async function drawText(pg, fonts, o, view) {
   });
 }
 
+// Centre del quadre del text (igual que al visor: ample de la caixa i alçada de les línies)
+async function textCenter(fonts, o) {
+  if (!o.rot || !o.text) return [o.x, o.y];
+  const font = await fonts.get(o.font, o.bold, o.italic, o.text);
+  const arr = wrapText(o.text, font, o.size, o.w ? o.w + 0.5 : 0);
+  const w = o.w || Math.max(...arr.map((l) => font.widthOfTextAtSize(l, o.size)));
+  return [o.x + w / 2, o.y + arr.length * o.size * LINE_H / 2];
+}
+
 function drawInk(pg, o, view) {
   const { pushGraphicsState, popGraphicsState, setLineWidth, setLineCap, setLineJoin, LineCapStyle, LineJoinStyle, setStrokingColor, moveTo, lineTo, stroke } = L();
   const ops = [pushGraphicsState(), setLineWidth(o.width), setLineCap(LineCapStyle.Round), setLineJoin(LineJoinStyle.Round), setStrokingColor(rgbOf(o.color))];
@@ -137,24 +146,34 @@ function addMarkup(doc, pg, o, view) {
   pg.node.addAnnot(ctx.register(annot));
 }
 
+// Dibuixa un objecte girat o.rot graus (sentit horari) al voltant del centre (cx, cy), en coordenades locals
+async function withRotation(pg, o, view, cx, cy, fn) {
+  if (!o.rot) return fn();
+  const { pushGraphicsState, popGraphicsState, concatTransformationMatrix } = L();
+  const th = -o.rot * Math.PI / 180, c = Math.cos(th), sn = Math.sin(th);
+  const X = view[0] + cx, Y = view[3] - cy;
+  pg.pushOperators(pushGraphicsState(), concatTransformationMatrix(c, sn, -sn, c, X - X * c + Y * sn, Y - X * sn - Y * c));
+  try { await fn(); } finally { pg.pushOperators(popGraphicsState()); }
+}
+
 async function drawObjects(doc, pg, entry, view, fonts, imgCache) {
   const { degrees } = L();
   for (const o of entry.objs) {
+    const cx = o.x + (o.w || 0) / 2, cy = o.y + (o.h || 0) / 2;
     switch (o.type) {
-      case 'text': await drawText(pg, fonts, o, view); break;
-      case 'rect': {
+      case 'text': await withRotation(pg, o, view, ...(await textCenter(fonts, o)), () => drawText(pg, fonts, o, view)); break;
+      case 'rect': await withRotation(pg, o, view, cx, cy, async () => {
         const opt = { x: view[0] + o.x, y: view[3] - o.y - o.h, width: o.w, height: o.h };
         if (o.fill) opt.color = rgbOf(o.fill);
         if (o.stroke && o.width > 0) { opt.borderColor = rgbOf(o.stroke); opt.borderWidth = o.width; }
         if (opt.color || opt.borderColor) pg.drawRectangle(opt);
-        break;
-      }
-      case 'ink': drawInk(pg, o, view); break;
+      }); break;
+      case 'ink': await withRotation(pg, o, view, cx, cy, async () => drawInk(pg, o, view)); break;
       case 'img': {
         const im = S.images.get(o.img); if (!im) break;
         let emb = imgCache.get(o.img);
         if (!emb) { emb = im.mime === 'image/jpeg' ? await doc.embedJpg(im.bytes) : await doc.embedPng(im.bytes); imgCache.set(o.img, emb); }
-        pg.drawImage(emb, { x: view[0] + o.x, y: view[3] - o.y - o.h, width: o.w, height: o.h, opacity: o.opacity ?? 1 });
+        await withRotation(pg, o, view, cx, cy, async () => pg.drawImage(emb, { x: view[0] + o.x, y: view[3] - o.y - o.h, width: o.w, height: o.h, opacity: o.opacity ?? 1 }));
         break;
       }
       case 'hl': case 'ul': case 'st': addMarkup(doc, pg, o, view); break;

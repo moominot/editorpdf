@@ -185,3 +185,6 @@ textarea.fld { resize: none; line-height: 1.15; }
 #dropzone.side { display: none; }
 #side-import { margin: 6px; flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; }
 #side-import svg { width: 16px; height: 16px; }
+.obj .rh { position: absolute; left: calc(50% - 6px); top: -28px; width: 12px; height: 12px; border-radius: 50%; background: var(--sel); border: 1.5px solid #fff; cursor: grab; z-index: 3; pointer-events: auto; touch-action: none; }
+.obj .rh::after { content: ''; position: absolute; left: 4px; top: 11px; width: 1.5px; height: 14px; background: var(--sel); }
+@media (any-pointer: coarse) { .obj .rh { width: 20px; height: 20px; left: calc(50% - 10px); top: -36px; } .obj .rh::after { left: 8px; top: 19px; } }

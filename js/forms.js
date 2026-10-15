@@ -51,12 +51,19 @@ export async function renderForms(pv) {
     const [x0, y0, x1, y1] = a.rect;
     const w = (x1 - x0) * s, h = (y1 - y0) * s;
     if (w < 2 || h < 2) continue;
-    const style = { left: (x0 - view[0]) * s + 'px', top: (view[3] - y1) * s + 'px', width: w + 'px', height: h + 'px' };
+    // Camps amb text girat (MK /R, sentit antihorari): el control es dibuixa amb les mides intercanviades i es gira al voltant del centre
+    const rot = a.fieldType === 'Btn' ? 0 : ((a.rotation || 0) % 360 + 360) % 360;
+    const swap = rot === 90 || rot === 270;
+    const bw = swap ? h : w, bh = swap ? w : h;
+    const cx = ((x0 + x1) / 2 - view[0]) * s, cy = (view[3] - (y0 + y1) / 2) * s;
+    const style = rot
+      ? { left: cx - bw / 2 + 'px', top: cy - bh / 2 + 'px', width: bw + 'px', height: bh + 'px', transform: `rotate(${-rot}deg)` }
+      : { left: (x0 - view[0]) * s + 'px', top: (view[3] - y1) * s + 'px', width: w + 'px', height: h + 'px' };
     const name = a.fieldName || '';
     const cur = Object.prototype.hasOwnProperty.call(S.forms, name) ? S.forms[name] : undefined;
     let node = null;
     const dap = a.defaultAppearanceData || {};
-    const fs = dap.fontSize > 0 ? dap.fontSize * s : Math.max(8, Math.min(h * 0.68, 22 * s));
+    const fs = dap.fontSize > 0 ? dap.fontSize * s : Math.max(8, Math.min(bh * 0.68, 22 * s));
     if (a.fieldType === 'Tx') {
       const v = cur !== undefined ? cur : (Array.isArray(a.fieldValue) ? a.fieldValue.join('\n') : a.fieldValue ?? '');
       node = a.multiLine ? el('textarea') : el('input', { type: a.password ? 'password' : 'text' });
@@ -64,7 +71,7 @@ export async function renderForms(pv) {
       if (a.maxLen) node.maxLength = a.maxLen;
       node.style.fontSize = (a.multiLine ? (dap.fontSize > 0 ? fs : 12 * s) : fs) + 'px';
       node.style.textAlign = ['left', 'center', 'right'][a.textAlignment || 0] || 'left';
-      if (a.comb && a.maxLen) node.style.letterSpacing = (w / a.maxLen - fs * 0.55) + 'px';
+      if (a.comb && a.maxLen) node.style.letterSpacing = (bw / a.maxLen - fs * 0.55) + 'px';
       node.addEventListener('input', () => setValue(name, node.value, node));
       node.addEventListener('change', () => commit('content'));
     } else if (a.fieldType === 'Btn' && a.checkBox) {
@@ -83,8 +90,8 @@ export async function renderForms(pv) {
       const sel = cur !== undefined ? [].concat(cur) : [].concat(a.fieldValue ?? []);
       if (a.combo) node.append(el('option', { value: '', text: '' }));
       for (const o of opts) node.append(el('option', { value: o.exportValue, text: o.displayValue ?? o.exportValue }));
-      if (a.multiSelect) { node.multiple = true; node.size = Math.max(2, Math.floor(h / (fs * 1.4))); }
-      else if (!a.combo) node.size = Math.max(2, Math.floor(h / (fs * 1.4)));
+      if (a.multiSelect) { node.multiple = true; node.size = Math.max(2, Math.floor(bh / (fs * 1.4))); }
+      else if (!a.combo) node.size = Math.max(2, Math.floor(bh / (fs * 1.4)));
       [...node.options].forEach((o) => { o.selected = sel.includes(o.value); });
       node.style.fontSize = fs + 'px';
       node.addEventListener('change', () => {

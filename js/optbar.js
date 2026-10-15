@@ -1,8 +1,10 @@
 // Barra d'opcions contextual (color, mida, font…) segons l'eina o l'objecte seleccionat
 import { S, findObj, on } from './state.js';
 import { el } from './util.js';
-import { t } from './i18n.js';
-import { updateSelected, deleteSelected, duplicateSelected } from './objects.js';
+import { t, addStrings } from './i18n.js';
+import { updateSelected, deleteSelected, duplicateSelected, rotateSelected, ROTATABLE } from './objects.js';
+
+addStrings({ angle: ['Angle', 'Ángulo', 'Angle'] });
 
 let bar;
 const HL_COLORS = ['#ffe600', '#7CFC00', '#00e5ff', '#ff80ab', '#ffab40'];
@@ -80,6 +82,14 @@ function rebuild() {
     }
     case 'edittext': kids.push(el('span', { class: 'hint', text: t('hintEditText') })); break;
     default: kids.push(el('span', { class: 'hint', text: t('hintSelect') }));
+  }
+  if (o && ROTATABLE.includes(o.type)) {
+    const ang = el('input', { type: 'number', min: 0, max: 359, step: 1, value: Math.round(o.rot || 0), title: t('angle') });
+    ang.addEventListener('change', () => { if (ang.value !== '') rotateSelected(0, +ang.value); });
+    kids.push(el('span', { class: 'sep' }),
+      el('button', { class: 'ib', title: t('rotL'), html: '<svg><use href="#i-rotl"/></svg>', onclick: () => { rotateSelected(-90); rebuild(); } }),
+      el('button', { class: 'ib', title: t('rotR'), html: '<svg><use href="#i-rotr"/></svg>', onclick: () => { rotateSelected(90); rebuild(); } }),
+      label(t('angle'), ang));
   }
   if (o) {
     kids.push(el('span', { class: 'sep' }));

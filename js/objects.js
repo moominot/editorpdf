@@ -81,6 +81,9 @@ export function inkBBox(paths, width) {
   return { x: x0 - m, y: y0 - m, w: Math.max(1, x1 - x0 + width), h: Math.max(1, y1 - y0 + width) };
 }
 
+// Tipus d'objecte que es poden girar (al voltant del seu centre; o.rot en graus, sentit horari)
+export const ROTATABLE = ['text', 'img', 'rect', 'ink'];
+
 // ---------------- render de capes ----------------
 export function renderLayers(pv) {
   if (editing && editing.pid === pv.pid) return;
@@ -165,9 +168,11 @@ function buildObjEl(pv, o, selected) {
       break;
     }
   }
-  if (selected && ['text', 'img', 'rect'].includes(o.type)) {
-    const dirs = o.type === 'text' ? ['w', 'e'] : o.type === 'textedit' ? [] : ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+  if (o.rot && o.type !== 'textedit') d.style.transform = `rotate(${o.rot}deg)`;
+  if (selected && ROTATABLE.includes(o.type)) {
+    const dirs = o.type === 'text' ? ['w', 'e'] : o.type === 'ink' ? [] : ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
     for (const dir of dirs) d.append(el('i', { class: 'h', 'data-d': dir }));
+    d.append(el('i', { class: 'rh' }));
   }
   d.addEventListener('pointerdown', (ev) => onObjPointerDown(ev, pv, o.id));
   d.addEventListener('dblclick', () => { if (o.type === 'text' || o.type === 'textedit') startEdit(pv.pid, o.id); });
@@ -193,6 +198,7 @@ function onObjPointerDown(ev, pv, oid) {
   const dir = handle?.dataset.d || null;
   const start = pv.clientToLocalPt(ev.clientX, ev.clientY);
   const orig = clone(o);
+  if (ev.target.closest?.('.rh')) return startRotate(ev, pv, oid);
   let moved = false;
   const move = (m) => {
     const cur = pv.clientToLocalPt(m.clientX, m.clientY);
@@ -203,7 +209,8 @@ function onObjPointerDown(ev, pv, oid) {
     if (!dir) {
       // restaura i desplaça
       Object.assign(live, clone(orig)); shiftObj(live, dx, dy);
-    } else resizeObj(live, orig, dir, dx, dy, m.shiftKey);
+    } else if (orig.rot) resizeRotated(live, orig, dir, dx, dy, m.shiftKey);
+    else resizeObj(live, orig, dir, dx, dy, m.shiftKey);
     renderLayers(pv);
   };
   const up = () => {
@@ -213,6 +220,43 @@ function onObjPointerDown(ev, pv, oid) {
     else if (S.tool === 'text' && !dir && (o.type === 'text' || o.type === 'textedit')) startEdit(pv.pid, oid);
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+}
+
+// Centre de l'objecte en coordenades locals de la pàgina
+function centerOf(o) { return [o.x + (o.w || 0) / 2, o.y + (o.h || 0) / 2]; }
+
+// Gira l'objecte arrossegant l'ansa superior; Maj (o prop de múltiples de 45°) enganxa l'angle
+function startRotate(ev, pv, oid) {
+  const o0 = pv.entry.objs.find((x) => x.id === oid);
+  const [cx, cy] = centerOf(o0);
+  let moved = false;
+  const move = (m) => {
+    const live = pv.entry.objs.find((x) => x.id === oid); if (!live) return;
+    const [px, py] = pv.clientToLocalPt(m.clientX, m.clientY);
+    let ang = Math.atan2(py - cy, px - cx) * 180 / Math.PI + 90;
+    const near = Math.round(ang / 45) * 45;
+    if (m.shiftKey) ang = Math.round(ang / 15) * 15;
+    else if (Math.abs(ang - near) < 3) ang = near;
+    ang = ((Math.round(ang * 10) / 10) % 360 + 360) % 360;
+    live.rot = ang || undefined; if (!ang) delete live.rot;
+    moved = true;
+    renderLayers(pv);
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    if (moved) { commit('content'); emit('selection', S.sel); }
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+}
+
+// Redimensiona un objecte girat: el desplaçament es passa a l'eix de l'objecte i es compensa el canvi de centre perquè el punt oposat no es mogui
+function resizeRotated(o, orig, dir, dx, dy, keep) {
+  const th = orig.rot * Math.PI / 180, c = Math.cos(th), sn = Math.sin(th);
+  resizeObj(o, orig, dir, dx * c + dy * sn, -dx * sn + dy * c, keep);
+  const [c0x, c0y] = centerOf(orig);
+  const [c1x, c1y] = [o.x + (o.w || 0) / 2, o.y + (orig.type === 'text' ? orig.h || 0 : o.h) / 2];
+  const vx = c1x - c0x, vy = c1y - c0y;
+  o.x += c * vx - sn * vy - vx; o.y += sn * vx + c * vy - vy;
 }
 
 function resizeObj(o, orig, dir, dx, dy, keep) {
@@ -242,7 +286,7 @@ export function startEdit(pid, oid) {
   if (editing) finishEdit();
   selectObj(pid, oid);
   const node = pv.objLayer.querySelector(`[data-oid="${oid}"]`); if (!node) return;
-  node.querySelectorAll('.h').forEach((h) => h.remove());
+  node.querySelectorAll('.h, .rh').forEach((h) => h.remove());
   node.contentEditable = 'plaintext-only';
   if (node.contentEditable !== 'plaintext-only') node.contentEditable = 'true';
   node.spellcheck = false;
@@ -479,6 +523,16 @@ function mergeRects(rs) {
     } else out.push({ ...r });
   }
   return out;
+}
+
+// Gira l'objecte seleccionat (relatiu: delta; o absolut: abs) i desa un pas a l'historial
+export function rotateSelected(delta, abs = null) {
+  const o = findObj(S.sel); if (!o || !ROTATABLE.includes(o.type)) return false;
+  const r = (((abs ?? ((o.rot || 0) + delta)) % 360) + 360) % 360;
+  if (r) o.rot = r; else delete o.rot;
+  viewerRef.refreshLayers(S.sel.pid);
+  commit('content');
+  return true;
 }
 
 // Canvia propietats de l'objecte seleccionat (barra d'opcions)
