@@ -26,7 +26,8 @@ PORT = int(os.environ.get('PORT', '8090'))
 TTL = int(os.environ.get('TTL_SECONDS', '600'))            # vida màxima d'un element
 MAX_BODY = int(os.environ.get('MAX_BODY_MB', '120')) * 1024 * 1024
 MAX_ITEMS = int(os.environ.get('MAX_ITEMS', '200'))
-ALLOW_ORIGIN = os.environ.get('ALLOWED_ORIGIN', '*')       # p. ex. https://usuari.github.io
+# Orígens admesos, separats per comes (p. ex. "https://usuari.github.io,http://localhost:8080") o '*'
+ALLOW_ORIGINS = [o.strip() for o in os.environ.get('ALLOWED_ORIGIN', '*').split(',') if o.strip()]
 RATE = int(os.environ.get('RATE_PER_MINUTE', '240'))       # peticions per IP i minut
 LOG = os.environ.get('LOG', '1') == '1'                    # registra operacions (mai contingut)
 
@@ -79,6 +80,15 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # no es registra contingut ni identificadors
         pass
 
+    def _cors(self):
+        # amb diversos orígens, es retorna el de la petició si és a la llista (CORS només n'admet un per resposta)
+        if '*' in ALLOW_ORIGINS:
+            self.send_header('Access-Control-Allow-Origin', '*')
+            return
+        origin = self.headers.get('Origin', '')
+        self.send_header('Access-Control-Allow-Origin', origin if origin in ALLOW_ORIGINS else ALLOW_ORIGINS[0])
+        self.send_header('Vary', 'Origin')
+
     def _send(self, text, status=200):
         body = text.encode('utf-8')
         if getattr(self, '_logged', False):
@@ -86,14 +96,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'text/plain; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
-        self.send_header('Access-Control-Allow-Origin', ALLOW_ORIGIN)
+        self._cors()
         self.send_header('Cache-Control', 'no-store')
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header('Access-Control-Allow-Origin', ALLOW_ORIGIN)
+        self._cors()
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.send_header('Access-Control-Max-Age', '86400')

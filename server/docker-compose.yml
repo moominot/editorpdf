@@ -7,7 +7,8 @@ services:
       - "127.0.0.1:8099:8090"   # només accessible en local; Tailscale Funnel el publica amb HTTPS
     environment:
       # Origen de la web (GitHub Pages), p. ex. https://elmeuusuari.github.io. Deixa '*' mentre proves.
-      ALLOWED_ORIGIN: "https://moominot.github.io"
+      # Es poden posar diversos orígens separats per comes (p. ex. el servidor local de proves).
+      ALLOWED_ORIGIN: "https://moominot.github.io,http://localhost:8080"
       TTL_SECONDS: "600"
       MAX_BODY_MB: "120"
     read_only: true
