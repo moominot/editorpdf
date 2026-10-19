@@ -152,26 +152,15 @@ export function desDecrypt(keyStr, text) {
   return out.subarray(0, out.length - pad);
 }
 
-async function aesEncrypt(keyBytes, iv, data) {
-  const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']);
-  return new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, k, data));
-}
-async function aesDecrypt(keyBytes, iv, data) {
-  const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']);
-  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, k, data));
-}
-
 const isAndroid = () => /android/i.test(navigator.userAgent);
 
 export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'SHA256withRSA', format = 'PAdES', onStatus = () => {}, signal } = {}) {
   const { storage, retriever } = relayUrls(base);
   const rid = newIdSession();     // identificador de la resposta
   const fileId = newIdSession();  // identificador de la configuració pujada
+  // Només DES (clau 'key'). No s'envia el paràmetre 'cipher' (AES): l'app AutoFirma 1.9.3 d'Android hi respon
+  // amb l'error AA600006 ("Los parametros de la peticion no eran validos"); comprovat amb el dispositiu real.
   const legDes = String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000000).padStart(8, '0');
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(16));
-  const cipherCfg = { algo: 'AES', key: bytesToBase64(key), iv: bytesToBase64(iv), legDes };
-  const cipherParam = btoa(JSON.stringify(cipherCfg));
 
   const props = paramsToString(extraParams);
   const entries = [
@@ -179,12 +168,11 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
     props ? ['properties', btoa(unescape(encodeURIComponent(props)))] : null,
     ['dat', b64urlOfBytes(pdfBytes)],
     ['ver', PROTOCOL_VERSION], ['op', 'sign'], ['id', rid], ['appname', location.hostname || 'pdf-simple'],
-    ['key', legDes], ['cipher', cipherParam], ['stservlet', storage],
+    ['key', legDes], ['stservlet', storage],
   ].filter(Boolean);
-  // AutoFirma aplica URLDecoder a cada valor: sense codificar, un '+' del base64 es convertiria en espai i el JSON de xifratge quedaria malmès
+  // AutoFirma aplica URLDecoder a cada valor (ProtocolInvocationUriParserUtil.parseXml): sense codificar, un '+' del base64 es convertiria en espai
   const xml = '<sign>' + entries.map(([k, v]) => `<e k="${k}" v="${encodeURIComponent(v)}"/>`).join('') + '</sign>';
   onStatus('upload');
-  // Igual que el client oficial: la primera pujada va xifrada amb DES (clau 'key'), i s'anuncia AES per a la resposta
   const encText = desEncrypt(legDes, new TextEncoder().encode(xml));
   const put = await fetch(storage, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -194,7 +182,7 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
   if (putTxt !== 'OK') throw new AutoFirmaError('El servidor intermedi ha rebutjat les dades: ' + putTxt, 'UPLOAD', 'error');
 
   const q = (k, v) => `${k}=${encodeURIComponent(v)}`;
-  const urlParams = ['jvc=' + PROTOCOL_VERSION, q('fileid', fileId), q('rid', rid), q('rtservlet', retriever), q('stservlet', storage), q('key', legDes), q('cipher', cipherParam)].join('&');
+  const urlParams = ['jvc=' + PROTOCOL_VERSION, q('fileid', fileId), q('rid', rid), q('rtservlet', retriever), q('stservlet', storage), q('key', legDes)].join('&');
   const url = isAndroid() && /chrome/i.test(navigator.userAgent)
     ? `intent://sign?${urlParams}#Intent;scheme=afirma;package=es.gob.afirma;end`
     : `afirma://sign?${urlParams}`;
@@ -221,12 +209,8 @@ export async function signViaRelay(pdfBytes, extraParams, base, { algorithm = 'S
       if (txt.slice(0, 6).toLowerCase() === 'err-06') continue; // encara no hi ha resultat
       if (txt.slice(0, 5).toLowerCase() === '#wait') { onStatus('working'); continue; }
       const err = parseError(txt); if (err) throw err;
-      const parts = txt.split('|');
-      const dec = [];
-      for (const p of parts) {
-        if (/^d./.test(p)) dec.push(desDecrypt(legDes, p)); // resposta amb DES (apps antigues)
-        else dec.push(await aesDecrypt(key, iv, base64ToBytes(fromUrlSafe(p))));
-      }
+      // Cada part va xifrada amb DES en format "N.base64url" (N = farciment afegit)
+      const dec = txt.split('|').map((p) => desDecrypt(legDes, p));
       // Els valors descifrats són els bytes en cru (certificat DER, PDF signat)
       let certDer = null, sig;
       if (dec.length === 1) sig = dec[0]; else { certDer = dec[0]; sig = dec[1]; }

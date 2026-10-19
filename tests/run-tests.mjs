@@ -60,7 +60,6 @@ console.log('AutoFirma mòbil (client + servidor + app simulats)');
 await test('signViaRelay: cicle de pujada, signatura simulada i recuperació', async () => {
   const store = new Map();
   const log = [];
-  const aesKey = async (k) => crypto.subtle.importKey('raw', k, { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']);
   const parseBody = (b) => { const p = {}; for (const part of String(b || '').split('&')) { const i = part.indexOf('='); if (i > 0) p[part.slice(0, i)] = part.slice(i + 1); } return p; };
   // servidor simulat amb la mateixa semàntica que server/relay.py
   const serve = (url, init = {}) => {
@@ -74,26 +73,23 @@ await test('signViaRelay: cicle de pujada, signatura simulada i recuperació', a
 
   // "app" AutoFirma simulada: s'activa quan el client obre afirma://sign?...
   const fromUrlSafe = (s) => s.replace(/-/g, '+').replace(/_/g, '/');
-  const toUrlSafe = (s) => s.replace(/\+/g, '-').replace(/\//g, '_');
   const appHandle = async (url) => {
+    const { desDecrypt, desEncrypt } = await import('../js/autofirma.js');
     const q = new URL(url.replace(/^intent:/, 'afirma:').split('#Intent')[0]).searchParams;
-    const cfg = JSON.parse(atob(q.get('cipher')));
-    const key = base64ToBytes(cfg.key), iv = base64ToBytes(cfg.iv);
+    // L'app AutoFirma 1.9.3 d'Android rebutja el paràmetre 'cipher' (AA600006): només DES amb la clau 'key'
+    assert.equal(q.get('cipher'), null);
     const raw = store.get(q.get('fileid'));
-    // com AesServerCipher: primer AES i, si falla, DES (clau 'key' de la URL, format "N.base64")
-    let xml;
-    try { xml = new TextDecoder().decode(new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, await aesKey(key), base64ToBytes(fromUrlSafe(raw))))); }
-    catch { xml = new TextDecoder().decode((await import('../js/autofirma.js')).desDecrypt(q.get('key'), raw)); }
+    const xml = new TextDecoder().decode(desDecrypt(q.get('key'), raw));
     store.delete(q.get('fileid'));
     const kv = {}; for (const m of xml.matchAll(/<e k="([^"]+)" v="([^"]*)"\/>/g)) kv[m[1]] = decodeURIComponent(m[2].replace(/\+/g, ' ')); // com java.net.URLDecoder
-    assert.equal(JSON.parse(atob(kv.cipher)).key, cfg.key); // el JSON de xifratge sobreviu al URLDecoder
+    assert.equal(kv.cipher, undefined);
     assert.equal(kv.op, 'sign'); assert.equal(kv.format, 'PAdES'); assert.equal(kv.id, q.get('rid'));
     assert.equal(atob(kv.properties).split('\n').find((l) => l.startsWith('signReason=')), 'signReason=Prova');
     const pdf = base64ToBytes(fromUrlSafe(kv.dat));
     const signed = new Uint8Array([...pdf, ...new TextEncoder().encode('%%SIGNED')]);
     const cert = new Uint8Array([1, 2, 3, 4]);
-    const encOne = async (d) => toUrlSafe(bytesToBase64(new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, await aesKey(key), d))));
-    store.set(q.get('rid'), (await encOne(cert)) + '|' + (await encOne(signed)));
+    // com CipherDataManager.cipherData de l'app: "N.base64url" per a cada part, separades per '|'
+    store.set(q.get('rid'), desEncrypt(q.get('key'), cert) + '|' + desEncrypt(q.get('key'), signed));
     log.push('app done');
   };
   let launched;
