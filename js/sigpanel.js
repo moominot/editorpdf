@@ -45,7 +45,7 @@ export async function showSignatures() {
     const partial = ok && !s.coversAll;
     const color = bad ? '#dc2626' : ok ? (partial ? '#d97706' : '#16a34a') : '#6b7280';
     const verdict = bad ? t('spBad') : ok ? (partial ? t('spOkPartial') : t('spOk')) : t('spUnknown');
-    const row = (k, v) => v ? el('div', { style: { display: 'grid', gridTemplateColumns: '170px 1fr', gap: '8px', margin: '3px 0' } }, el('span', { class: 'muted', text: k }), el('span', { text: v })) : null;
+    const row = (k, v) => v ? el('div', { class: 'kv' }, el('span', { class: 'muted', text: k }), el('span', { text: v })) : null;
     body.append(el('div', { style: { border: '1px solid var(--line)', borderLeft: `5px solid ${color}`, borderRadius: '8px', padding: '10px 14px', margin: '10px 0' } },
       el('div', { style: { fontWeight: '700', marginBottom: '4px' }, text: `${i + 1}. ${s.signer || s.fieldName || '—'}` }),
       el('div', { style: { color, marginBottom: '6px' }, text: (bad ? '✘ ' : ok ? '✔ ' : '? ') + verdict }),
