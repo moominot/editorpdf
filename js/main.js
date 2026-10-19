@@ -19,6 +19,8 @@ import './xfa.js';
 import { showSignatures } from './sigpanel.js';
 
 addStrings({
+  print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
+  mPrint: ['Imprimeix', 'Imprimir', 'Print'],
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
   installApp: ["Instal·la l'app (Obre amb… des de Windows)", 'Instalar la app (Abrir con… desde Windows)', 'Install app (Open with… from Windows)'],
   installed: ["App instal·lada. Ara, a l'Explorador: clic dret sobre un PDF → Obre amb → PDF Simple.", 'App instalada. Ahora, en el Explorador: clic derecho en un PDF → Abrir con → PDF Simple.', 'App installed. Now in File Explorer: right-click a PDF → Open with → PDF Simple.'],
@@ -274,8 +276,11 @@ $('#zoom-val').addEventListener('focus', (e) => e.target.select());
 $('#btn-settings').addEventListener('click', () => showSettings());
 $('#btn-ocr').addEventListener('click', async () => { if (!S.mainId) return toast(t('needDoc'), 'err'); const m = await import('./ocr.js'); m.runOcrDialog(); });
 $('#btn-find').addEventListener('click', toggleFind);
+$('#btn-print').addEventListener('click', printDoc);
 $('#btn-sidebar').addEventListener('click', () => document.body.classList.toggle('side-open'));
 $('#sidebar-scrim').addEventListener('click', () => document.body.classList.remove('side-open'));
+
+async function printDoc() { objects.finishEdit(); (await import('./print.js')).printDocument(); }
 
 async function toggleFind() {
   const bar = $('#findbar');
@@ -438,6 +443,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && k === 's') { e.preventDefault(); save(e.shiftKey); return; }
   if (mod && k === 'o') { e.preventDefault(); openLocal(); return; }
   if (mod && k === 'f') { e.preventDefault(); toggleFind(); return; }
+  if (mod && k === 'p') { e.preventDefault(); printDoc(); return; }
   if (typing(e)) return;
   if (mod && k === 'z') { e.preventDefault(); objects.finishEdit(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y') { e.preventDefault(); redo(); return; }

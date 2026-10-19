@@ -7,6 +7,12 @@ import { t } from './i18n.js';
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/build/pdf.worker.min.mjs', import.meta.url).href;
 const BASE = new URL('../vendor/pdfjs/', import.meta.url).href;
 export { pdfjs };
+// Opcions de càrrega comunes (CMaps, fonts estàndard, wasm, perfils ICC)
+export const LOAD_OPTS = {
+  cMapUrl: BASE + 'cmaps/', cMapPacked: true,
+  standardFontDataUrl: BASE + 'standard_fonts/', wasmUrl: BASE + 'wasm/', iccUrl: BASE + 'iccs/',
+  isEvalSupported: false,
+};
 
 const infoCache = new Map();
 
@@ -28,9 +34,8 @@ export function isEncrypted(bytes) { return findPattern(bytes, '/Encrypt') >= 0;
 export async function openSource(bytes, name, askPassword) {
   const task = pdfjs.getDocument({
     data: bytes.slice(),
-    cMapUrl: BASE + 'cmaps/', cMapPacked: true,
-    standardFontDataUrl: BASE + 'standard_fonts/', wasmUrl: BASE + 'wasm/', iccUrl: BASE + 'iccs/',
-    enableXfa: true, isEvalSupported: false,
+    ...LOAD_OPTS,
+    enableXfa: true,
   });
   let password = null;
   task.onPassword = async (update, reason) => {
