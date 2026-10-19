@@ -49,6 +49,14 @@ addStrings({
   sgDrawHelp: ['Això és una signatura visual (imatge), no una signatura digital amb validesa jurídica.', 'Esto es una firma visual (imagen), no una firma digital con validez jurídica.', 'This is a visual signature (image), not a legally valid digital signature.'],
   sgRotWarn: ['Pàgina girada: la posició de la signatura visible pot no coincidir.', 'Página girada: la posición de la firma visible puede no coincidir.', 'Rotated page: the visible signature position may not match.'],
   sgAlreadySigned: ['Aquest document ja té signatures: s\'afegirà una nova signatura (AutoFirma conserva les anteriors).', 'Este documento ya tiene firmas: se añadirá una nueva (AutoFirma conserva las anteriores).', 'This document already has signatures: a new one will be added (AutoFirma keeps the previous ones).'],
+  sgImg: ['Imatge de la signatura', 'Imagen de la firma', 'Signature image'],
+  sgImgUse: ['Inclou-la a la signatura visible', 'Incluirla en la firma visible', 'Include it in the visible signature'],
+  sgImgFile: ['Del dispositiu…', 'Del dispositivo…', 'From device…'],
+  sgImgDrive: ['De Drive…', 'De Drive…', 'From Drive…'],
+  sgImgRemove: ['Treu', 'Quitar', 'Remove'],
+  sgImgNone: ['Cap imatge desada', 'Ninguna imagen guardada', 'No saved image'],
+  sgImgErr: ['No s\'ha pogut llegir la imatge: {0}', 'No se ha podido leer la imagen: {0}', 'Could not read the image: {0}'],
+  sgTextHelp: ['$$SUBJECTCN$$ = nom del certificat · $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$ = data', '$$SUBJECTCN$$ = nombre del certificado · $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$ = fecha', '$$SUBJECTCN$$ = certificate name · $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$ = date'],
   sgP12Resign: ['Aquest PDF ja té signatures. Signar amb un certificat .p12 reescriu el fitxer i invalida les anteriors. Millor fes servir AutoFirma. Continuar igualment?', 'Este PDF ya tiene firmas. Firmar con un .p12 reescribe el archivo e invalida las anteriores. Mejor usa AutoFirma. ¿Continuar igualmente?', 'This PDF already has signatures. Signing with a .p12 rewrites the file and invalidates them. Prefer AutoFirma. Continue anyway?'],
 });
 
@@ -59,7 +67,38 @@ const savePrefs = (p) => { try { localStorage.setItem(PREF, JSON.stringify(p)); 
 let presetRect = null; // des del clic en un camp de signatura del PDF
 on('signField', (r) => { presetRect = r; toast(t('signHere'), '', 2500); });
 
-const DEFAULT_LAYER2 = 'Firmado digitalmente por $$SUBJECTCN$$. Fecha: $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$';
+// Text de la signatura visible (marcadors d'AutoFirma; amb .p12 se substitueixen aquí)
+const DEFAULT_LAYER2 = 'Signat digitalment per $$SUBJECTCN$$. Data: $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$';
+const OLD_DEFAULT_LAYER2 = 'Firmado digitalmente por $$SUBJECTCN$$. Fecha: $$SIGNDATE=dd/MM/yyyy HH:mm:ss$$';
+
+// Format de data a l'estil Java (dd, MM, yyyy, HH, mm, ss) per a $$SIGNDATE=…$$
+function fmtDate(pattern, d = new Date()) {
+  const p2 = (n) => String(n).padStart(2, '0');
+  return pattern.replace(/yyyy|dd|MM|HH|mm|ss/g, (k) => ({ yyyy: d.getFullYear(), dd: p2(d.getDate()), MM: p2(d.getMonth() + 1), HH: p2(d.getHours()), mm: p2(d.getMinutes()), ss: p2(d.getSeconds()) })[k]);
+}
+const fillLayer2 = (text, cn) => text.replace(/\$\$SUBJECTCN\$\$/g, cn).replace(/\$\$SIGNDATE=([^$]*)\$\$/g, (_, p) => fmtDate(p));
+
+// Imatge (rúbrica) de la signatura: es desa al navegador com a PNG reduït
+const IMG_KEY = 'pdfsimple.signimg';
+const loadSigImg = () => { try { return localStorage.getItem(IMG_KEY) || null; } catch { return null; } };
+async function storeSigImg(blob) {
+  const bmp = await createImageBitmap(blob);
+  const k = Math.min(1, 900 / bmp.width, 450 / bmp.height);
+  const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+  cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+  const url = cv.toDataURL('image/png');
+  localStorage.setItem(IMG_KEY, url);
+  return url;
+}
+const dataUrlBytes = (url) => Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+// AutoFirma només accepta JPEG: es pinta sobre fons blanc (la transparència es perdria)
+async function sigImgJpegB64(url) {
+  const bmp = await createImageBitmap(new Blob([dataUrlBytes(url)], { type: 'image/png' }));
+  const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+  const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0);
+  const jpg = cv.toDataURL('image/jpeg', 0.92);
+  return jpg.slice(jpg.indexOf(',') + 1);
+}
 
 function pickRect() {
   return new Promise((resolve) => {
@@ -83,7 +122,8 @@ export async function startSigning(kind) {
   if (main?.isXfa) return alertDlg(t('xfaOnly'));
 
   // estat del diàleg (es conserva entre "tria la zona" i tornar-hi)
-  const st = { visible: !!presetRect, rect: presetRect, reason: prefs.reason || '', location: prefs.location || '', contact: prefs.contact || '', text: prefs.text || DEFAULT_LAYER2, p12: null, pass: '' };
+  const text = !prefs.text || prefs.text === OLD_DEFAULT_LAYER2 ? DEFAULT_LAYER2 : prefs.text;
+  const st = { visible: !!presetRect || !!prefs.visible, rect: presetRect, reason: prefs.reason || '', location: prefs.location || '', contact: prefs.contact || '', text, useImg: prefs.useImg !== false, p12: null, pass: '' };
   st.fieldName = st.rect?.name || null;
   presetRect = null;
 
@@ -93,22 +133,54 @@ export async function startSigning(kind) {
     visSel.value = st.visible ? '1' : '0';
     const pickBtn = el('button', { class: 'tb', text: t('sgPick'), type: 'button' });
     const placed = el('span', { class: 'muted' });
+    const ta = el('textarea', { rows: 3, style: { width: '100%' } }); ta.value = st.text; ta.addEventListener('input', () => { st.text = ta.value; });
+    const textBox = el('div', {}, el('span', { class: 'muted', text: t('sgText') }), ta, el('div', { class: 'muted', style: { fontSize: '12px' }, text: t('sgTextHelp') }));
+
+    // imatge de la signatura visible: del dispositiu o de Drive, desada al navegador
+    const imgPrev = el('img', { alt: '', style: { maxHeight: '48px', maxWidth: '160px', background: '#fff', border: '1px solid var(--line)', borderRadius: '4px', verticalAlign: 'middle' } });
+    const imgNone = el('span', { class: 'muted', text: t('sgImgNone') });
+    const imgUse = el('input', { type: 'checkbox' }); imgUse.checked = st.useImg;
+    imgUse.addEventListener('change', () => { st.useImg = imgUse.checked; });
+    const imgFileInp = el('input', { type: 'file', accept: 'image/*', hidden: true });
+    const imgFileBtn = el('button', { class: 'tb', type: 'button', text: t('sgImgFile'), onclick: () => imgFileInp.click() });
+    const imgDriveBtn = el('button', { class: 'tb', type: 'button', text: t('sgImgDrive'), hidden: !cfg('googleClientId') });
+    const imgDelBtn = el('button', { class: 'tb', type: 'button', text: t('sgImgRemove') });
+    const imgUseLbl = el('label', { class: 'row chk' }, imgUse, el('span', { text: t('sgImgUse') }));
+    const refreshImg = () => {
+      const url = loadSigImg();
+      imgPrev.hidden = !url; if (url) imgPrev.src = url;
+      imgNone.hidden = !!url; imgDelBtn.hidden = !url; imgUseLbl.hidden = !url;
+    };
+    const setImg = async (blob) => {
+      try { await storeSigImg(blob); st.useImg = imgUse.checked = true; } catch (e) { toast(t('sgImgErr', e.message || e), 'err'); }
+      refreshImg();
+    };
+    imgFileInp.addEventListener('change', () => { if (imgFileInp.files[0]) setImg(imgFileInp.files[0]); });
+    imgDriveBtn.addEventListener('click', async () => {
+      try { const d = await (await import('./drive.js')).pickImage(); if (d) await setImg(new Blob([d.bytes], { type: d.mimeType })); } catch (e) { toast(String(e.message || e), 'err'); }
+    });
+    imgDelBtn.addEventListener('click', () => { try { localStorage.removeItem(IMG_KEY); } catch {} refreshImg(); });
+    refreshImg();
+    const imgBox = el('div', {},
+      el('label', { class: 'row' }, el('span', { text: t('sgImg') }), el('div', {}, imgPrev, imgNone, ' ', imgFileBtn, ' ', imgDriveBtn, ' ', imgDelBtn, imgFileInp)),
+      imgUseLbl);
+
     const refreshPlaced = () => {
-      pickBtn.hidden = placed.hidden = visSel.value !== '1';
+      const on = visSel.value === '1';
+      pickBtn.hidden = placed.hidden = imgBox.hidden = textBox.hidden = !on;
       placed.textContent = st.rect ? t('sgPlaced', pageIndex(st.rect.pid) + 1, Math.round(st.rect.w), Math.round(st.rect.h)) : '';
     };
     visSel.addEventListener('change', () => { st.visible = visSel.value === '1'; refreshPlaced(); });
     refreshPlaced();
     const inp = (key, label, type = 'text') => { const i = el('input', { type, value: st[key] }); i.addEventListener('input', () => { st[key] = i.value; }); return el('label', { class: 'row' }, el('span', { text: label }), i); };
-    const ta = el('textarea', { rows: 3, style: { width: '100%' } }); ta.value = st.text; ta.addEventListener('input', () => { st.text = ta.value; });
 
     const body = el('div', {},
       el('p', { class: 'warn', text: t('signLast') }),
       el('p', { class: 'muted', text: kind === 'autofirma' ? t('sgHelpDesktop') : kind === 'mobile' ? t('sgHelpMobile') : t('sgHelpP12') }),
       main?.signed && kind !== 'p12' ? el('p', { class: 'muted', text: t('sgAlreadySigned') }) : null,
       el('label', { class: 'row' }, el('span', { text: t('sgVisible') }), el('div', {}, visSel, ' ', pickBtn, ' ', placed)),
+      imgBox, textBox,
       inp('reason', t('sgReason')), inp('location', t('sgLocation')), inp('contact', t('sgContact')),
-      kind !== 'p12' ? el('div', {}, el('span', { class: 'muted', text: t('sgText') }), ta) : null,
     );
     let fileInp = null, passInp = null;
     if (kind === 'p12') {
@@ -132,9 +204,17 @@ export async function startSigning(kind) {
       continue;
     }
     if (!r) return;
-    if (st.visible && !st.rect) { st.visible = false; }
-    savePrefs({ reason: st.reason, location: st.location, contact: st.contact, text: st.text });
+    savePrefs({ reason: st.reason, location: st.location, contact: st.contact, text: st.text, visible: st.visible, useImg: st.useImg });
     if (kind === 'p12' && !st.p12) { toast(t('sgNeedCert'), 'err'); continue; }
+    // signatura visible sense zona triada: es demana la zona abans de signar
+    if (st.visible && !st.rect) {
+      setTool('select');
+      const rc = await pickRect();
+      setTool('select');
+      if (!rc) continue;
+      if (rc.w < 4) { rc.w = 190; rc.h = 56; }
+      st.rect = rc;
+    }
     break;
   }
   void 0;
@@ -160,14 +240,15 @@ async function runSigning(kind, st) {
       vis = { pageIndex: pageNo - 1, x: st.rect.x, y: st.rect.y, w: st.rect.w, h: st.rect.h, view: info.view };
       if (((info.nativeRot + (e?.rot || 0)) % 360) !== 0) toast(t('sgRotWarn'), '', 6000);
     }
+    const imgUrl = vis && st.useImg ? loadSigImg() : null;
     let result;
     if (kind === 'p12') {
       prog.set(0.9, t('working'));
       const p12 = p12m.readP12(st.p12, st.pass);
       const cn = p12m.certSummary(p12.cert).cn;
-      const lines = (st.text && st.text !== DEFAULT_LAYER2 ? st.text : `Firmado digitalmente por ${cn}\nFecha: ${new Date().toLocaleString('es-ES')}`)
-        .replace(/\$\$SUBJECTCN\$\$/g, cn).replace(/\$\$SIGNDATE=[^$]*\$\$/g, new Date().toLocaleString('es-ES')).split('\n');
-      const signed = await p12m.signPdfWithP12(pdf, p12, { visible: vis ? { ...vis, lines } : null, view: vis?.view, reason: st.reason, location: st.location, contact: st.contact });
+      const lines = fillLayer2(st.text || '', cn).split('\n');
+      const image = imgUrl ? { bytes: dataUrlBytes(imgUrl), type: 'png' } : null;
+      const signed = await p12m.signPdfWithP12(pdf, p12, { visible: vis ? { ...vis, lines, image } : null, view: vis?.view, reason: st.reason, location: st.location, contact: st.contact });
       result = { signed };
     } else {
       const params = {
@@ -181,16 +262,18 @@ async function runSigning(kind, st) {
           signaturePage: String(pageNo),
           signaturePositionOnPageLowerLeftX: Math.round(x0), signaturePositionOnPageLowerLeftY: Math.round(y1 - vis.h),
           signaturePositionOnPageUpperRightX: Math.round(x0 + vis.w), signaturePositionOnPageUpperRightY: Math.round(y1),
-          layer2Text: (st.text || DEFAULT_LAYER2).replace(/\s*\n\s*/g, ' '), layer2FontSize: '9', layer2FontFamily: '1',
+          layer2Text: (st.text || '').replace(/\s*\n\s*/g, ' '), layer2FontSize: '9', layer2FontFamily: '1',
         });
       }
+      // AutoFirma dibuixa la rúbrica ajustada a tot el requadre, amb el text a sobre
+      if (vis && imgUrl) params.signatureRubricImage = await sigImgJpegB64(imgUrl);
       const call = kind === 'autofirma'
         ? af.signDesktop(pdf, params, { onStatus })
         : af.signViaRelay(pdf, params, cfg('relayUrl'), { onStatus, signal: ctl.signal });
       result = await Promise.race([call, cancelP]);
     }
     prog.close();
-    const name = baseName(S.file.name || 'document') + '_firmat.pdf';
+    const name = baseName(S.file.name || 'document') + '_signat.pdf';
     const ok = await loadDocument(result.signed, name, { force: true });
     if (!ok) return;
     S.dirty = true; emit('history');

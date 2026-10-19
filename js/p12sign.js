@@ -129,7 +129,7 @@ const asciiSafe = (s) => s.normalize('NFC').replace(/[^\x20-\x7e -ÿ]/g, '?');
 /**
  * @param pdfBytes PDF ja generat amb totes les edicions
  * @param p12 { key, cert, chain } de readP12
- * @param opts { visible: {pageIndex, x, y, w, h}|null  (x,y = cantonada superior esquerra en punts de la pàgina sense rotar, relatiu al cropbox), reason, location, contact, view:[x0,y0,x1,y1] }
+ * @param opts { visible: {pageIndex, x, y, w, h, lines?, image?: {bytes, type:'png'|'jpg'}}|null  (x,y = cantonada superior esquerra en punts de la pàgina sense rotar, relatiu al cropbox), reason, location, contact, view:[x0,y0,x1,y1] }
  */
 export async function signPdfWithP12(pdfBytes, p12, opts = {}) {
   const { PDFDocument, PDFName, PDFNumber, PDFString, PDFHexString, PDFArray, StandardFonts } = L();
@@ -163,14 +163,42 @@ export async function signPdfWithP12(pdfBytes, p12, opts = {}) {
     const x0 = view[0] + vis.x, y1 = view[3] - vis.y;
     rect = [x0, y1 - vis.h, x0 + vis.w, y1];
     const helv = await doc.embedFont(StandardFonts.Helvetica);
-    const lines = (vis.lines && vis.lines.length ? vis.lines : [`Firmado digitalmente por ${sum.cn}`, `Fecha: ${now.toLocaleString('es-ES')}`]).map(asciiSafe);
-    let size = Math.min(10, vis.h / (lines.length + 0.6), 12);
-    const maxW = Math.max(...lines.map((l) => helv.widthOfTextAtSize(l, size)));
-    if (maxW > vis.w - 6) size = Math.max(4, size * (vis.w - 6) / maxW);
-    let content = `q 1 g 0 0 ${vis.w} ${vis.h} re f 0.55 G 0.5 w 0.25 0.25 ${vis.w - 0.5} ${vis.h - 0.5} re S Q\nBT 0.1 0.1 0.3 rg /F1 ${size.toFixed(2)} Tf\n`;
-    lines.forEach((l, i) => { content += `1 0 0 1 3 ${(vis.h - size * 1.2 * (i + 1)).toFixed(2)} Tm ${helv.encodeText(l).toString()} Tj\n`; });
-    content += 'ET';
-    const ap = ctx.stream(content, { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, vis.w, vis.h], Resources: { Font: { F1: helv.ref } } });
+    const paras = (vis.lines && vis.lines.length ? vis.lines : [`Signat digitalment per ${sum.cn}`, `Data: ${now.toLocaleString('ca-ES')}`]).map(asciiSafe);
+    const pad = 3;
+    let content = `q 1 g 0 0 ${vis.w} ${vis.h} re f 0.55 G 0.5 w 0.25 0.25 ${vis.w - 0.5} ${vis.h - 0.5} re S Q\n`;
+    const resources = { Font: { F1: helv.ref } };
+    // imatge (rúbrica) a l'esquerra, ajustada a l'alçada i com a molt el 45 % de l'amplada si hi ha text
+    let textX = pad;
+    if (vis.image) {
+      const img = vis.image.type === 'png' ? await doc.embedPng(vis.image.bytes) : await doc.embedJpg(vis.image.bytes);
+      const hasText = paras.some((p) => p.trim());
+      const maxW = (hasText ? vis.w * 0.45 : vis.w) - 2 * pad, maxH = vis.h - 2 * pad;
+      const k = Math.min(maxW / img.width, maxH / img.height);
+      const iw = img.width * k, ih = img.height * k;
+      const ix = hasText ? pad : (vis.w - iw) / 2;
+      content += `q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${((vis.h - ih) / 2).toFixed(2)} cm /Im1 Do Q\n`;
+      resources.XObject = { Im1: img.ref };
+      textX = hasText ? pad + iw + 4 : vis.w;
+    }
+    // text ajustat per paraules a l'amplada disponible; la mida baixa fins que hi cap
+    const avail = vis.w - textX - pad;
+    const wrap = (size) => paras.flatMap((p) => {
+      const out = []; let cur = '';
+      for (const word of p.split(/\s+/).filter(Boolean)) {
+        const next = cur ? cur + ' ' + word : word;
+        if (cur && helv.widthOfTextAtSize(next, size) > avail) { out.push(cur); cur = word; } else cur = next;
+      }
+      return cur ? [...out, cur] : out;
+    });
+    if (avail > 8) {
+      let size = 10, lines = wrap(size);
+      while (size > 4 && (lines.length * size * 1.2 > vis.h - 2 * pad || lines.some((l) => helv.widthOfTextAtSize(l, size) > avail))) { size -= 0.5; lines = wrap(size); }
+      const top = (vis.h + lines.length * size * 1.2) / 2; // centrat verticalment
+      content += `BT 0.1 0.1 0.3 rg /F1 ${size.toFixed(2)} Tf\n`;
+      lines.forEach((l, i) => { content += `1 0 0 1 ${textX.toFixed(2)} ${(top - size * (1.2 * i + 1)).toFixed(2)} Tm ${helv.encodeText(l).toString()} Tj\n`; });
+      content += 'ET';
+    }
+    const ap = ctx.stream(content, { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, vis.w, vis.h], Resources: resources });
     widget.AP = { N: ctx.register(ap) };
   }
   widget.Rect = rect;

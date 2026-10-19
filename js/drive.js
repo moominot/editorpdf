@@ -9,6 +9,7 @@ addStrings({
   drAuth: ['No s\'ha pogut autoritzar l\'accés a Google Drive', 'No se pudo autorizar el acceso a Google Drive', 'Could not authorize Google Drive access'],
   drNotPdf: ['El fitxer triat no és un PDF.', 'El archivo elegido no es un PDF.', 'The chosen file is not a PDF.'],
   drPickTitle: ['Tria un PDF de Google Drive', 'Elige un PDF de Google Drive', 'Pick a PDF from Google Drive'],
+  drPickImgTitle: ['Tria una imatge de Google Drive', 'Elige una imagen de Google Drive', 'Pick an image from Google Drive'],
   drFolderTitle: ['Tria la carpeta de destinació', 'Elige la carpeta de destino', 'Choose the destination folder'],
   drUploadErr: ['Error en pujar a Google Drive ({0})', 'Error al subir a Google Drive ({0})', 'Upload to Google Drive failed ({0})'],
   drDownloadErr: ['Error en baixar de Google Drive ({0})', 'Error al descargar de Google Drive ({0})', 'Download from Google Drive failed ({0})'],
@@ -115,6 +116,22 @@ export async function pickAndDownload() {
   const res = await api(`https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media&supportsAllDrives=true`);
   if (!res.ok) throw new Error(t('drDownloadErr', res.status));
   return { id: doc.id, name: meta.name || doc.name, parents: meta.parents || null, bytes: new Uint8Array(await res.arrayBuffer()) };
+}
+
+const IMG_TYPES = 'image/png,image/jpeg,image/webp,image/gif';
+// Tria una imatge de Drive (p. ex. la rúbrica de la signatura). Retorna { name, mimeType, bytes } o null
+export async function pickImage() {
+  await prepare();
+  const g = window.google.picker;
+  const doc = await showPicker((b) => {
+    const view = new g.DocsView(g.ViewId.DOCS).setMimeTypes(IMG_TYPES).setIncludeFolders(true);
+    const shared = new g.DocsView(g.ViewId.DOCS).setMimeTypes(IMG_TYPES).setOwnedByMe(false);
+    return b.setTitle(t('drPickImgTitle')).addView(view).addView(shared).enableFeature(g.Feature.SUPPORT_DRIVES);
+  });
+  if (!doc) return null;
+  const res = await api(`https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media&supportsAllDrives=true`);
+  if (!res.ok) throw new Error(t('drDownloadErr', res.status));
+  return { name: doc.name, mimeType: doc.mimeType, bytes: new Uint8Array(await res.arrayBuffer()) };
 }
 
 // Retorna l'id de carpeta, null (arrel de "El meu Drive") o 'cancel'
