@@ -120,7 +120,11 @@ class Handler(BaseHTTPRequestHandler):
         path = u.path.lower()
         self._logged = op != 'check'
         if op != 'check':
-            log(self.command, u.path, 'op=%s' % op, 'id=%s…' % (params.get('id') or '')[:4], 'bytes=%d' % len(body), 'ua=%s' % (self.headers.get('User-Agent') or '')[:40])
+            ua = self.headers.get('User-Agent') or ''
+            # Petició de l'app AutoFirma (no del navegador): es marca i es detallen els paràmetres (mai el contingut)
+            app = 'Mozilla' not in ua
+            extra = (' APP keys=%s v=%s dat_len=%d' % (','.join(sorted(params)), params.get('v'), len(params.get('dat') or ''))) if app else ''
+            log(self.command, u.path, 'op=%s' % op, 'id=%s…' % (params.get('id') or '')[:4], 'bytes=%d' % len(body), 'ua=%s' % ua[:40] + extra)
         if op is None:
             return self._send(err('ERR-00'))
         if op == 'check':
@@ -146,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
                 item = store.pop(ident, None)
             if item is None:
                 return self._send(err('ERR-06'))
-            return self._send(item[1] + '\n')
+            return self._send(item[1])
         return self._send(err('ERR-01'))
 
 

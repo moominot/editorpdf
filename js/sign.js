@@ -147,6 +147,7 @@ async function runSigning(kind, st) {
   let cancelled = false;
   const cancelP = new Promise((_, rej) => { abort = () => { cancelled = true; rej(new af.AutoFirmaError('cancel', 'CANCEL', 'cancel')); }; });
   const onStatus = (s) => prog.set(null, t('sgSt_' + s));
+  const ctl = new AbortController(); // atura el sondeig del servidor intermediari en cancel·lar o acabar
   try {
     prog.set(0, t('working'));
     const pdf = await buildPdf({ progress: (p) => prog.set(p) });
@@ -185,7 +186,7 @@ async function runSigning(kind, st) {
       }
       const call = kind === 'autofirma'
         ? af.signDesktop(pdf, params, { onStatus })
-        : af.signViaRelay(pdf, params, cfg('relayUrl'), { onStatus });
+        : af.signViaRelay(pdf, params, cfg('relayUrl'), { onStatus, signal: ctl.signal });
       result = await Promise.race([call, cancelP]);
     }
     prog.close();
@@ -200,7 +201,7 @@ async function runSigning(kind, st) {
     if (af.isCancel(e) || cancelled) return toast(t('sgCancelled'));
     console.error(e);
     await alertDlg(String(e.message || e), t('sgTitle'));
-  }
+  } finally { ctl.abort(); }
 }
 
 // ---------------- signatura manuscrita visual ----------------
