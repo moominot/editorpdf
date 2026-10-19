@@ -50,7 +50,7 @@ function rebuild() {
       const cur = o ? o.color : S.opts[kind].color;
       kids.push(el('span', { class: 'hint', text: t('color') }), ...swatches(kind === 'hl' ? HL_COLORS : LN_COLORS, cur, (c) => { apply({ color: c }); rebuild(); }),
         colorInput(cur, (v) => apply({ color: v }, false), (v) => apply({ color: v })));
-      if (!o) kids.push(el('span', { class: 'hint', text: t('hintHl') }));
+      if (!o) kids.push(el('span', { class: 'hint tip', text: t('hintHl') }));
       break;
     }
     case 'ink': {
@@ -58,7 +58,7 @@ function rebuild() {
       const w = el('input', { type: 'number', min: 0.5, max: 40, step: 0.5, value: src.width });
       w.addEventListener('change', () => { if (+w.value > 0) apply({ width: +w.value }); });
       kids.push(label(t('color'), colorInput(src.color, (v) => apply({ color: v }, false), (v) => apply({ color: v }))), label(t('width'), w));
-      if (!o) kids.push(el('span', { class: 'hint', text: t('hintInk') }));
+      if (!o) kids.push(el('span', { class: 'hint tip', text: t('hintInk') }));
       break;
     }
     case 'rect': {
@@ -70,7 +70,7 @@ function rebuild() {
       nof.addEventListener('change', () => apply({ fill: nof.checked ? '' : fillIn.value }));
       kids.push(label(t('stroke'), colorInput(src.stroke || '#e11d48', (v) => apply({ stroke: v }, false), (v) => apply({ stroke: v }))), label(t('width'), w),
         label(t('fill'), fillIn), label(t('noFill'), nof));
-      if (!o) kids.push(el('span', { class: 'hint', text: t('hintRect') }));
+      if (!o) kids.push(el('span', { class: 'hint tip', text: t('hintRect') }));
       break;
     }
     case 'img': {
@@ -80,8 +80,8 @@ function rebuild() {
       kids.push(label(t('opacity'), r));
       break;
     }
-    case 'edittext': kids.push(el('span', { class: 'hint', text: t('hintEditText') })); break;
-    default: kids.push(el('span', { class: 'hint', text: t('hintSelect') }));
+    case 'edittext': kids.push(el('span', { class: 'hint tip', text: t('hintEditText') })); break;
+    default: kids.push(el('span', { class: 'hint tip', text: t('hintSelect') }));
   }
   if (o && ROTATABLE.includes(o.type)) {
     const ang = el('input', { type: 'number', min: 0, max: 359, step: 1, value: Math.round(o.rot || 0), title: t('angle') });
@@ -95,8 +95,10 @@ function rebuild() {
     kids.push(el('span', { class: 'sep' }));
     kids.push(el('button', { class: 'ib', title: 'Ctrl+D', html: '<svg><use href="#i-copy"/></svg>', onclick: () => duplicateSelected() }));
     kids.push(el('button', { class: 'ib danger', title: t('delete') + ' (Supr)', html: '<svg><use href="#i-trash"/></svg>', onclick: () => deleteSelected() }));
-  } else if (kind === 'text') kids.push(el('span', { class: 'hint', text: t('hintText') }));
+  } else if (kind === 'text') kids.push(el('span', { class: 'hint tip', text: t('hintText') }));
   bar.replaceChildren(...kids);
+  // al mòbil les ajudes no ocupen fila: si només hi ha l'ajuda, la barra s'amaga (vegeu mobilebar.js)
+  bar.classList.toggle('only-tip', kids.every((k) => k.classList?.contains('tip')));
   bar.hidden = false;
 }
 

@@ -42,6 +42,7 @@
     <symbol id="i-ocr" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></symbol>
     <symbol id="i-find" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
@@ -82,28 +83,39 @@
       <button class="ib" id="btn-redo" data-i18n-title="redo"><svg><use href="#i-redo"/></svg></button>
     </div>
 
-    <div class="grp tools" id="tools">
-      <button class="ib" data-tool="select" data-i18n-title="tSelect"><svg><use href="#i-cursor"/></svg></button>
-      <button class="ib" data-tool="text" data-i18n-title="tText"><svg><use href="#i-text"/></svg></button>
-      <button class="ib" data-tool="hl" data-i18n-title="tHl"><svg><use href="#i-hl"/></svg></button>
-      <button class="ib" data-tool="ul" data-i18n-title="tUl"><svg><use href="#i-ul"/></svg></button>
-      <button class="ib" data-tool="st" data-i18n-title="tSt"><svg><use href="#i-st"/></svg></button>
-      <button class="ib" data-tool="ink" data-i18n-title="tInk"><svg><use href="#i-pen"/></svg></button>
-      <button class="ib" data-tool="rect" data-i18n-title="tRect"><svg><use href="#i-rect"/></svg></button>
-      <button class="ib" data-tool="img" data-i18n-title="tImg"><svg><use href="#i-img"/></svg></button>
-      <button class="ib" data-tool="edittext" data-i18n-title="tEditText"><svg><use href="#i-edittext"/></svg></button>
+    <div class="grp" id="tools-grp">
+      <!-- mòbil: botó amb l'eina actual que desplega la graella d'eines -->
+      <button class="ib mobile-only" id="btn-tools" data-i18n-title="mTools"><svg id="btn-tools-ico"><use href="#i-cursor"/></svg><svg class="chev"><use href="#i-chev"/></svg></button>
+      <div class="tools" id="tools">
+        <button class="ib" data-tool="select" data-i18n-title="tSelect"><svg><use href="#i-cursor"/></svg></button>
+        <button class="ib" data-tool="text" data-i18n-title="tText"><svg><use href="#i-text"/></svg></button>
+        <button class="ib" data-tool="hl" data-i18n-title="tHl"><svg><use href="#i-hl"/></svg></button>
+        <button class="ib" data-tool="ul" data-i18n-title="tUl"><svg><use href="#i-ul"/></svg></button>
+        <button class="ib" data-tool="st" data-i18n-title="tSt"><svg><use href="#i-st"/></svg></button>
+        <button class="ib" data-tool="ink" data-i18n-title="tInk"><svg><use href="#i-pen"/></svg></button>
+        <button class="ib" data-tool="rect" data-i18n-title="tRect"><svg><use href="#i-rect"/></svg></button>
+        <button class="ib" data-tool="img" data-i18n-title="tImg"><svg><use href="#i-img"/></svg></button>
+        <button class="ib" data-tool="edittext" data-i18n-title="tEditText"><svg><use href="#i-edittext"/></svg></button>
+      </div>
     </div>
 
-    <div class="grp zoom">
-      <button class="ib" id="btn-zout" data-i18n-title="zoomOut"><svg><use href="#i-zout"/></svg></button>
-      <input id="zoom-val" class="zoomval" value="100%" aria-label="Zoom" inputmode="numeric">
-      <button class="ib" id="btn-zin" data-i18n-title="zoomIn"><svg><use href="#i-zin"/></svg></button>
-      <button class="ib" id="btn-fitw" data-i18n-title="fitWidth"><svg><use href="#i-fitw"/></svg></button>
-      <button class="ib" id="btn-fitp" data-i18n-title="fitPage"><svg><use href="#i-fitp"/></svg></button>
+    <!-- a l'escriptori és part de la barra; al mòbil és el menú lateral de la dreta (botó ⋮) -->
+    <div id="more">
+      <div class="grp zoom">
+        <button class="ib" id="btn-zout" data-i18n-title="zoomOut"><svg><use href="#i-zout"/></svg></button>
+        <input id="zoom-val" class="zoomval" value="100%" aria-label="Zoom" inputmode="numeric">
+        <button class="ib" id="btn-zin" data-i18n-title="zoomIn"><svg><use href="#i-zin"/></svg></button>
+        <button class="ib" id="btn-fitw" data-i18n-title="fitWidth"><svg><use href="#i-fitw"/></svg></button>
+        <button class="ib" id="btn-fitp" data-i18n-title="fitPage"><svg><use href="#i-fitp"/></svg></button>
+      </div>
+      <div class="grp more-list">
+        <button class="ib" id="btn-find" data-i18n-title="find"><svg><use href="#i-find"/></svg><span class="more-label" data-i18n="mFind">Cerca</span></button>
+        <button class="ib" id="btn-ocr" data-i18n-title="ocr"><svg><use href="#i-ocr"/></svg><span class="more-label" data-i18n="mOcr">OCR</span></button>
+        <button class="ib" id="btn-settings" data-i18n-title="settings"><svg><use href="#i-gear"/></svg><span class="more-label" data-i18n="settings">Ajustos</span></button>
+      </div>
     </div>
 
-    <div class="grp">
-      <button class="ib" id="btn-find" data-i18n-title="find"><svg><use href="#i-find"/></svg></button>
+    <div class="grp" id="sign-grp">
       <div class="menu">
         <button class="tb accent" data-menu="menu-sign"><svg><use href="#i-sign"/></svg><span data-i18n="sign">Signa</span><svg class="chev"><use href="#i-chev"/></svg></button>
         <div class="menu-pop right" id="menu-sign">
@@ -114,10 +126,11 @@
           <button data-act="sign-draw"><span data-i18n="signDraw">Signatura manuscrita (visual)</span></button>
         </div>
       </div>
-      <button class="ib" id="btn-ocr" data-i18n-title="ocr"><svg><use href="#i-ocr"/></svg></button>
-      <button class="ib" id="btn-settings" data-i18n-title="settings"><svg><use href="#i-gear"/></svg></button>
+      <button class="ib mobile-only" id="btn-more" data-i18n-title="mMore"><svg><use href="#i-dots"/></svg></button>
     </div>
   </header>
+  <div id="more-scrim"></div>
+  <button class="ib" id="bars-show" data-i18n-title="mShowBar"><svg id="bars-show-ico"><use href="#i-cursor"/></svg><svg class="chev"><use href="#i-chev"/></svg></button>
 
   <div id="optbar" hidden></div>
   <div id="findbar" hidden>

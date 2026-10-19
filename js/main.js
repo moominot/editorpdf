@@ -9,6 +9,7 @@ import { Thumbs, WIN_ID } from './thumbs.js';
 import * as objects from './objects.js';
 import { clearFormCache } from './forms.js';
 import { initOptbar } from './optbar.js';
+import { initMobileBar } from './mobilebar.js';
 import { setTool, updateCapture } from './tools.js';
 import * as pageops from './pageops.js';
 import * as files from './files.js';
@@ -495,6 +496,7 @@ async function showSettings() {
 if (cfg('googleClientId')) import('./drive.js').then((d) => d.preload());
 initMenus();
 initOptbar($('#optbar'));
+initMobileBar();
 applyI18n();
 setTool('select');
 updateUi();
