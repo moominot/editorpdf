@@ -135,11 +135,13 @@ export async function pickImage() {
 }
 
 // Retorna l'id de carpeta, null (arrel de "El meu Drive") o 'cancel'
-export async function chooseFolder() {
+// startFolder: carpeta on s'obre el selector (p. ex. la del document original)
+export async function chooseFolder(startFolder = null) {
   await prepare();
   const g = window.google.picker;
   const doc = await showPicker((b) => {
     const view = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder');
+    if (startFolder) view.setParent(startFolder);
     return b.setTitle(t('drFolderTitle')).addView(view).enableFeature(g.Feature.SUPPORT_DRIVES);
   });
   return doc ? doc.id : 'cancel';

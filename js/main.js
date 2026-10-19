@@ -196,8 +196,11 @@ export async function saveToDrive(as = false) {
     objects.finishEdit();
     const drive = await import('./drive.js');
     await drive.prepare(); // pot demanar login (requereix gest d'usuari)
+    // sense fitxer a Drive però amb carpeta coneguda (p. ex. el document signat d'un original de Drive): es desa
+    // com a fitxer nou a la mateixa carpeta sense preguntar; "com a…" obre el selector en aquesta carpeta
+    const parent = S.file.driveParents?.[0] || null;
     let target = null;
-    if (as || !S.file.driveId) target = await drive.chooseFolder();
+    if (as || (!S.file.driveId && !parent)) target = await drive.chooseFolder(parent);
     if (target === 'cancel') return;
     const bytes = await generate();
     const res = await drive.upload(bytes, { id: as ? null : S.file.driveId, name: suggestedName(), parents: target ? [target] : S.file.driveParents });
@@ -252,6 +255,9 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   actions[b.dataset.act]?.();
 });
+// Al mòbil (Android/iOS) no hi ha AutoFirma d'escriptori: només s'ofereix la signatura amb el servidor intermediari
+const IS_MOBILE_DEVICE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (IS_MOBILE_DEVICE) for (const a of ['sign-autofirma', 'sign-p12']) $(`#menu-sign [data-act="${a}"]`).hidden = true;
 async function signWith(kind) {
   if (!S.mainId) return toast(t('needDoc'), 'err');
   try { const m = await import('./sign.js'); await m.startSigning(kind); } catch (e) { console.error(e); toast(String(e.message || e), 'err', 8000); }
