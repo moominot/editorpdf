@@ -160,6 +160,9 @@ textarea.fld { resize: none; line-height: 1.15; }
 /* fila etiqueta/valor (llistat de signatures); minmax(0,…) i overflow-wrap perquè els DN i els noms llargs no surtin del diàleg */
 .modal .kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px; margin: 3px 0; }
 .modal .kv > :last-child { overflow-wrap: anywhere; }
+.sp-online { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); overflow-wrap: anywhere; }
+.sp-line { margin: 3px 0; }
+.sp-line.ok { color: #16a34a; } .sp-line.bad { color: #dc2626; } .sp-line.warn { color: #d97706; } .sp-line.wait { color: var(--muted); }
 .pagepick { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; margin: 8px 0; }
 .pagepick .pp { border: 2px solid transparent; border-radius: 6px; padding: 4px; text-align: center; cursor: pointer; font-size: 12px; color: var(--muted); }
 .pagepick .pp.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }

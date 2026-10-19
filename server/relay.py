@@ -6,14 +6,21 @@ la recull, signa, i hi deixa el resultat (xifrat) perquè la web el reculli. El 
 els documents (van xifrats amb una clau que només coneixen la web i AutoFirma), no té base de dades i
 els elements viuen en memòria uns minuts.
 
+També ofereix /afirma-validate: validació en línia d'un certificat de signatura (cadena contra la TSL espanyola i
+revocació per OCSP), vegeu certcheck.py. Aquesta part necessita l'eina `openssl` del sistema.
+
 Només biblioteca estàndard de Python 3.8+.
 """
+import base64
+import json
 import os
 import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse, unquote_plus
+
+import certcheck
 
 PORT = int(os.environ.get('PORT', '8090'))
 TTL = int(os.environ.get('TTL_SECONDS', '600'))            # vida màxima d'un element
@@ -129,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(err('ERR-00'))
         if op == 'check':
             return self._send('OK')
+        if op == 'validate' and 'validate' in path:
+            return self._validate(params)
         if not params.get('v'):
             return self._send(err('ERR-20'))
         ident = params.get('id')
@@ -153,9 +162,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(item[1])
         return self._send(err('ERR-01'))
 
+    def _validate(self, params):
+        # certs = certificats DER en base64 url-safe separats per '.', el primer el del signant; time = segons UNIX
+        try:
+            certs = [base64.urlsafe_b64decode(c + '=' * (-len(c) % 4)) for c in unquote_plus(params.get('certs', '')).split('.') if c]
+            t = params.get('time')
+            res = certcheck.validate(certs, int(t) if t and t.isdigit() else None)
+        except Exception as e:
+            res = {'chain': 'error', 'revocation': 'unchecked', 'detail': str(e)[:200]}
+        log('  validate chain=%s rev=%s' % (res.get('chain'), res.get('revocation')))
+        return self._send(json.dumps(res, ensure_ascii=False))
+
 
 if __name__ == '__main__':
     srv = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     srv.daemon_threads = True
     print(f'Servidor intermedi AutoFirma escoltant al port {PORT} (TTL {TTL}s)', flush=True)
+    certcheck.start_tsl_updater(lambda m: log(m))
     srv.serve_forever()

@@ -72,6 +72,15 @@ export async function listSignatures(bytes) {
         sig.subject = cert.subject.attributes.map((a) => `${a.shortName || a.name}=${a.value}`).join(', ');
         sig.serial = cert.serialNumber; sig.notBefore = cert.validity.notBefore; sig.notAfter = cert.validity.notAfter;
         sig.chain = certs.map((c) => nameOf(c.subject));
+        // certificats tal com venen a la signatura (DER original, el del signant primer) per a la validació en línia
+        try {
+          const sd = root.value[1].value[0];
+          const raw = sd.value.find((n) => n.tagClass === asn1.Class.CONTEXT_SPECIFIC && n.type === 0)?.value || [];
+          if (raw.length === certs.length) {
+            const li = certs.indexOf(cert);
+            sig.certsB64 = [raw[li], ...raw.filter((_, j) => j !== li)].map((n) => forge.util.encode64(asn1.toDer(n).getBytes()));
+          }
+        } catch { /* sense validació en línia per a aquesta signatura */ }
       }
       // atributs signats
       const attrs = cap.authenticatedAttributes || [];

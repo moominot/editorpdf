@@ -78,7 +78,9 @@ tailscale funnel status          # mostra l'adreça https://<màquina>.<xarxa>.t
 3. Instal·la **AutoFirma** al mòbil (Android/iOS), importa el teu certificat o fes servir el DNIe per NFC.
 4. Al mòbil obre la web → **Signa → AutoFirma mòbil**. S'obre l'app AutoFirma, signes, tornes a la pestanya i el PDF signat apareix.
 
-`python3 server/test_relay.py` comprova el servidor. Nota: el protocol s'ha implementat a partir del codi font oficial de `clienteafirma`; la integració amb l'app real del mòbil s'ha de provar al teu dispositiu.
+`python3 server/test_relay.py` comprova el servidor. Nota: el protocol s'ha implementat a partir del codi font oficial de `clienteafirma`; la integració amb l'app real del mòbil s'ha de provar al teu dispositiu. Provat amb AutoFirma 1.9.3 d'Android: no s'envia el paràmetre `cipher` (AES), que l'app rebutja, i la imatge de la signatura s'envia sense perfil ICC.
+
+**Validació en línia de signatures.** El mateix servidor ofereix `/afirma-validate`: a **Veure signatures**, l'app hi envia només els certificats de cada signatura (mai el document) i rep si la cadena penja d'una autoritat de la llista de confiança oficial espanyola ([TSL](https://tsl.digital.gob.es/TSL.xml), que el servidor baixa i refresca cada dia) i l'estat de revocació consultat ara per OCSP. Necessita `openssl` al contenidor (ja és al `Dockerfile`). Si el servidor no respon, el diàleg mostra igualment la comprovació local. No substitueix un informe oficial de VALIDe.
 
 ### 6. Signar amb un certificat .p12/.pfx (qualsevol dispositiu)
 
