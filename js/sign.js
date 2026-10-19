@@ -1,6 +1,6 @@
 // Orquestració de signatures: AutoFirma (escriptori / mòbil), certificat .p12 al navegador i signatura manuscrita visual
 import { S, pageById, pageIndex, emit, on } from './state.js';
-import { el, readFileBytes, baseName } from './util.js';
+import { el, readFileBytes, baseName, bytesToBase64 } from './util.js';
 import { t, addStrings } from './i18n.js';
 import { modal, toast, progressDlg, confirmDlg, alertDlg } from './ui.js';
 import { buildPdf } from './export.js';
@@ -97,7 +97,25 @@ async function sigImgJpegB64(url) {
   const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
   const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(bmp, 0, 0);
   const jpg = cv.toDataURL('image/jpeg', 0.92);
-  return jpg.slice(jpg.indexOf(',') + 1);
+  return bytesToBase64(stripJpegMeta(dataUrlBytes(jpg)));
+}
+// Treu els segments APP1–APP15 del JPEG (Chrome hi posa un perfil ICC a l'APP2). L'AutoFirma d'Android no
+// pot reprocessar la imatge, l'incrusta tal qual i falla en llegir l'ICC (AA212002, ArrayIndexOutOfBounds).
+function stripJpegMeta(b) {
+  if (b[0] !== 0xFF || b[1] !== 0xD8) return b;
+  const parts = [b.subarray(0, 2)];
+  let i = 2;
+  while (i + 4 <= b.length && b[i] === 0xFF) {
+    const m = b[i + 1];
+    if (m === 0xDA) break; // inici de les dades de la imatge: la resta es copia tal qual
+    const end = i + 2 + ((b[i + 2] << 8) | b[i + 3]);
+    if (!(m >= 0xE1 && m <= 0xEF)) parts.push(b.subarray(i, end));
+    i = end;
+  }
+  parts.push(b.subarray(i));
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
 }
 
 function pickRect() {
