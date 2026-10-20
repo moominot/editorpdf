@@ -25,7 +25,8 @@ from urllib.parse import urlparse
 
 TSL_URL = os.environ.get('TSL_URL', 'https://tsl.digital.gob.es/TSL.xml')
 TSL_REFRESH_HOURS = float(os.environ.get('TSL_REFRESH_HOURS', '24'))
-TSL_PEM = os.path.join(tempfile.gettempdir(), 'afirma-tsl.pem')
+# On es desa la TSL: amb un volum persistent, després d'un reinici es fa servir l'última còpia bona de seguida
+TSL_PEM = os.environ.get('TSL_CACHE', os.path.join(tempfile.gettempdir(), 'afirma-tsl.pem'))
 NET_TIMEOUT = 10
 MAX_CERTS = 10
 MAX_CERT_BYTES = 16 * 1024
@@ -70,17 +71,31 @@ def _load_tsl():
 
 def start_tsl_updater(log=print):
     """Baixa la TSL en segon pla i la refresca periòdicament (no bloqueja l'arrencada del servidor)."""
+    # còpia desada d'una execució anterior: es fa servir mentre no se'n baixa una de nova
+    try:
+        with open(TSL_PEM) as f:
+            n = f.read().count('-----BEGIN CERTIFICATE-----')
+        if n >= 10:
+            with _tsl_lock:
+                _tsl.update(count=n, loaded=os.path.getmtime(TSL_PEM))
+            log('TSL desada: %d autoritats qualificades' % n)
+    except OSError:
+        pass
+
     def loop():
+        fails = 0
         while True:
             try:
                 n = _load_tsl()
                 log('TSL carregada: %d autoritats qualificades' % n)
+                fails = 0
                 wait = TSL_REFRESH_HOURS * 3600
             except Exception as e:  # es conserva la còpia anterior; es reintenta aviat
                 with _tsl_lock:
                     _tsl['error'] = str(e)[:200]
                 log('TSL: error en baixar-la: %s' % str(e)[:200])
-                wait = 600
+                fails += 1
+                wait = 60 if fails <= 10 else 600  # després d'un reinici la xarxa pot trigar a estar a punt
             time.sleep(wait)
     threading.Thread(target=loop, daemon=True).start()
 

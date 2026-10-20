@@ -11,8 +11,20 @@ services:
       ALLOWED_ORIGIN: "https://moominot.github.io,http://localhost:8080"
       TTL_SECONDS: "600"
       MAX_BODY_MB: "120"
+      TSL_CACHE: /var/lib/afirma/tsl.pem
     read_only: true
     tmpfs:
-      - /tmp:size=32m   # TSL i fitxers temporals de la validació de certificats
+      - /tmp:size=32m   # fitxers temporals de la validació de certificats
+    volumes:
+      - tsl-cache:/var/lib/afirma   # última TSL bona: disponible de seguida després d'un reinici
+    # DNS explícit: si el servidor arrenca abans que la xarxa (p. ex. després d'un tall de llum), el DNS intern de
+    # Docker pot quedar sense servidors i el contenidor no resol noms fins que es recrea
+    dns:
+      - 192.168.178.1
+      - 9.9.9.9
+      - 1.1.1.1
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+
+volumes:
+  tsl-cache:
