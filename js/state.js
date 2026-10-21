@@ -8,7 +8,7 @@ export const S = {
   forms: {},            // nomCamp -> valor
   images: new Map(),    // imgId -> { bytes, mime, w, h, url }
   ocrStore: new Map(),  // id -> { words:[...] } (fora de l'historial per no engreixar-lo)
-  file: { name: '', handle: null, driveId: null, driveParents: null },
+  file: { name: '', handle: null, nearHandle: null, driveId: null, driveParents: null }, // nearHandle: fitxer local a la carpeta del qual es desa (p. ex. l'original d'un document signat)
   dirty: false,
   pristine: true,       // true si no hi ha cap canvi respecte als bytes originals
   zoom: 1,
@@ -88,6 +88,6 @@ export function resetDoc(keepSources = false) {
   for (const i of S.images.values()) URL.revokeObjectURL(i.url);
   S.images.clear(); S.ocrStore.clear();
   S.sel = null; S.pageSel = new Set(); S.cur = 0; S.dirty = false; S.pristine = true;
-  S.file = { name: '', handle: null, driveId: null, driveParents: null };
+  S.file = { name: '', handle: null, nearHandle: null, driveId: null, driveParents: null };
 }
 export { clone };

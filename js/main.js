@@ -82,7 +82,7 @@ export async function loadDocument(bytes, name, extra = {}) {
   viewer.clear(); thumbs.clear();
   S.mainId = src.id;
   S.pages = Array.from({ length: src.numPages }, (_, i) => newPage(src.id, i));
-  S.file = { name, handle: extra.handle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null };
+  S.file = { name, handle: extra.handle || null, nearHandle: extra.nearHandle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null };
   S.zoom = 1;
   resetHistory();
   emit('selection', null);
@@ -110,7 +110,7 @@ export function openInNewWindow(bytes, name, extra = {}) {
   const onMsg = (e) => {
     if (e.source !== w || e.data?.type !== 'pdfsimple-ready') return;
     window.removeEventListener('message', onMsg);
-    w.postMessage({ type: 'pdfsimple-open', bytes, name, extra: { handle: extra.handle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null } }, location.origin);
+    w.postMessage({ type: 'pdfsimple-open', bytes, name, extra: { handle: extra.handle || null, nearHandle: extra.nearHandle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null } }, location.origin);
   };
   window.addEventListener('message', onMsg);
   return true;
@@ -149,6 +149,8 @@ async function newBlank() {
 
 // ------------------------------------------------------------------ desar
 function suggestedName() { return (S.file.name || t('newDocName')).replace(/\.pdf$/i, '') + '.pdf'; }
+// com a Drive: els fitxers nous es proposen a la mateixa carpeta que el document obert (o que l'original)
+const localNear = () => S.file.handle || S.file.nearHandle;
 
 async function ensureSignedOk() {
   const m = S.sources.get(S.mainId);
@@ -170,7 +172,7 @@ export async function save(as = false) {
     let handle = S.file.handle;
     if (as || !handle) {
       if (files.hasFSA) {
-        const h = await files.chooseSaveHandle(suggestedName());
+        const h = await files.chooseSaveHandle(suggestedName(), localNear());
         if (h === 'cancel') return;
         handle = h;
       }
@@ -310,7 +312,7 @@ $('#sidebar').addEventListener('click', async (e) => {
     case 'extract': {
       try {
         let handle = null, name = baseName(S.file.name) + ' (' + t('extractName') + ').pdf';
-        if (files.hasFSA) { handle = await files.chooseSaveHandle(name); if (handle === 'cancel') break; }
+        if (files.hasFSA) { handle = await files.chooseSaveHandle(name, localNear()); if (handle === 'cancel') break; }
         const bytes = await generate({ onlyPages: ids });
         if (handle) await files.writeToHandle(handle, bytes); else files.downloadPdf(bytes, name);
         toast(t('saved', handle?.name || name), 'ok');

@@ -32,6 +32,7 @@ addStrings({
   sgNoRelay: ['Configura l\'adreça del servidor intermedi als Ajustos.', 'Configura la dirección del servidor intermediario en Ajustes.', 'Set the relay server address in Settings.'],
   sgNeedCert: ['Selecciona el fitxer del certificat.', 'Selecciona el archivo del certificado.', 'Select the certificate file.'],
   sgDone: ['Document signat. Desa\'l ara per conservar la signatura.', 'Documento firmado. Guárdalo ahora para conservar la firma.', 'Document signed. Save it now to keep the signature.'],
+  sgDoneLocal: ['Document signat. Desa\'l ara: el diàleg s\'obrirà a la mateixa carpeta que l\'original.', 'Documento firmado. Guárdalo ahora: el diálogo se abrirá en la misma carpeta que el original.', 'Document signed. Save it now: the dialog will open in the same folder as the original.'],
   sgDoneDrive: ['Document signat. Desa\'l ara: es crearà un fitxer nou a la mateixa carpeta de Drive que l\'original.', 'Documento firmado. Guárdalo ahora: se creará un archivo nuevo en la misma carpeta de Drive que el original.', 'Document signed. Save it now: a new file will be created in the same Drive folder as the original.'],
   sgSaveNow: ['Desa ara', 'Guardar ahora', 'Save now'],
   sgLater: ['Més tard', 'Más tarde', 'Later'],
@@ -293,12 +294,13 @@ async function runSigning(kind, st) {
     }
     prog.close();
     const name = baseName(S.file.name || 'document') + '_signat.pdf';
-    // si l'original venia de Drive, el signat es desa com a fitxer nou a la mateixa carpeta
+    // el signat es desa com a fitxer nou a la mateixa carpeta que l'original (de Drive o de l'ordinador)
     const driveParents = S.file.driveParents || null;
-    const ok = await loadDocument(result.signed, name, { force: true, driveParents });
+    const nearHandle = S.file.handle || S.file.nearHandle || null;
+    const ok = await loadDocument(result.signed, name, { force: true, driveParents, nearHandle });
     if (!ok) return;
     S.dirty = true; emit('history');
-    const r = await modal({ body: el('p', { text: driveParents ? t('sgDoneDrive') : t('sgDone') }), buttons: [{ label: t('sgLater'), value: false }, { label: t('sgSaveNow'), value: true, primary: true }] });
+    const r = await modal({ body: el('p', { text: driveParents ? t('sgDoneDrive') : nearHandle ? t('sgDoneLocal') : t('sgDone') }), buttons: [{ label: t('sgLater'), value: false }, { label: t('sgSaveNow'), value: true, primary: true }] });
     if (r) await (driveParents ? saveToDrive(false) : save(true));
   } catch (e) {
     prog.close();

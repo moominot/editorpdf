@@ -59,10 +59,14 @@ export async function ensureWritable(handle) {
   return (await handle.requestPermission(opts)) === 'granted';
 }
 
-export async function chooseSaveHandle(suggestedName) {
+// near: handle d'un fitxer local; el diàleg s'obre a la seva carpeta (si ja no hi és, a la carpeta per defecte)
+export async function chooseSaveHandle(suggestedName, near = null) {
   if (!hasFSA) return null;
-  try { return await window.showSaveFilePicker({ suggestedName, types: PDF_TYPES }); }
-  catch (e) { if (e?.name === 'AbortError') return 'cancel'; throw e; }
+  const opts = { suggestedName, types: PDF_TYPES };
+  try {
+    try { return await window.showSaveFilePicker(near ? { ...opts, startIn: near } : opts); }
+    catch (e) { if (!near || e?.name === 'AbortError') throw e; return await window.showSaveFilePicker(opts); }
+  } catch (e) { if (e?.name === 'AbortError') return 'cancel'; throw e; }
 }
 
 export async function writeToHandle(handle, bytes) {
