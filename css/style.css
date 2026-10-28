@@ -135,6 +135,8 @@ kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: auto
 
 .pg { position: relative; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.45); flex: none; overflow: hidden; }
 .pg canvas.main { position: absolute; left: 0; top: 0; display: block; }
+.pg canvas.detail { position: absolute; display: block; pointer-events: none; }
+.pg canvas.detail[hidden] { display: none; }
 .pg .hl-layer { position: absolute; left: 0; top: 0; pointer-events: none; transform-origin: 0 0; mix-blend-mode: multiply; }
 .pg .textLayer { position: absolute; inset: 0; z-index: 2; }
 .pg .textLayer span, .pg .textLayer br { cursor: text; }

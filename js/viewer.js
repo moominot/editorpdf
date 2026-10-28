@@ -5,7 +5,11 @@ import { el, clamp, localToDisplay, displayToLocal } from './util.js';
 import { ocConfig } from './layers.js';
 
 export const CSS_PER_PT = 96 / 72;
-const MAX_PIXELS = 24e6;
+const MAX_PIXELS = 24e6;    // pàgina sencera (a molt de zoom queda per sota de la resolució de pantalla)
+const DETAIL_PIXELS = 16e6; // zona visible a resolució de pantalla, a sobre de la pàgina sencera
+export const MAX_ZOOM = 16;
+
+const renderOpts = (e) => ({ annotationMode: e.src === S.mainId ? pdfjs.AnnotationMode.ENABLE_FORMS : pdfjs.AnnotationMode.ENABLE, optionalContentConfigPromise: ocConfig(e.src) });
 
 // Hooks que ompl la resta de mòduls (evita imports circulars)
 export const hooks = {
@@ -37,6 +41,8 @@ export class PageView {
     this.visible = false;
 
     this.canvas = el('canvas', { class: 'main' });
+    this.detail = el('canvas', { class: 'detail' }); this.detail.hidden = true;
+    this.dtoken = 0; this.dtask = null; this.detailRect = null; this.lowRes = false;
     this.hlLayer = el('div', { class: 'hl-layer' });
     this.textDiv = el('div', { class: 'textLayer' });
     this.formLayer = el('div', { class: 'form-layer' });
@@ -44,7 +50,7 @@ export class PageView {
     this.findLayer = el('div', { class: 'find-layer' });
     this.frame = el('div', { class: 'frame' }, this.formLayer, this.objLayer, this.findLayer);
     this.capture = el('div', { class: 'capture' });
-    this.el = el('div', { class: 'pg', 'data-pid': entry.id }, this.canvas, this.hlLayer, this.textDiv, this.capture, this.frame);
+    this.el = el('div', { class: 'pg', 'data-pid': entry.id }, this.canvas, this.detail, this.hlLayer, this.textDiv, this.capture, this.frame);
     this.el.pv = this;
     this.setPlaceholderSize(595, 842);
   }
@@ -78,6 +84,17 @@ export class PageView {
     this.el.style.setProperty('--total-scale-factor', this.s);
     this.el.style.setProperty('--scale-factor', this.s);
     this.canvas.style.width = dw + 'px'; this.canvas.style.height = dh + 'px';
+    this.placeDetail();
+  }
+  // el detall es guarda en fraccions de la pàgina: en canviar el zoom s'estira fins que es torna a pintar
+  placeDetail() {
+    const r = this.detailRect; if (!r) return;
+    const st = this.detail.style, { dw, dh } = this;
+    st.left = r.x * dw + 'px'; st.top = r.y * dh + 'px'; st.width = r.w * dw + 'px'; st.height = r.h * dh + 'px';
+  }
+  dropDetail() {
+    this.dtoken++; this.dtask?.cancel?.(); this.dtask = null;
+    this.detailRect = null; this.cover = null; this.detail.hidden = true; this.detail.width = 1; this.detail.height = 1;
   }
 
   // coordenades de pantalla -> punts locals de la pàgina (origen dalt-esq. sense rotar)
@@ -108,13 +125,14 @@ export class PageView {
     const { dw, dh, s, rot } = this;
     const dpr = clamp(window.devicePixelRatio || 1, 1, 3);
     let out = dpr;
-    if (dw * dh * out * out > MAX_PIXELS) out = Math.max(0.5, Math.sqrt(MAX_PIXELS / (dw * dh)));
+    if (dw * dh * out * out > MAX_PIXELS) out = Math.sqrt(MAX_PIXELS / (dw * dh));
+    this.dpr = dpr; this.lowRes = out < dpr * 0.98 && !e.blank;
     const cw = Math.max(1, Math.floor(dw * out)), ch = Math.max(1, Math.floor(dh * out));
 
     if (e.blank) {
       this.canvas.width = cw; this.canvas.height = ch;
       const ctx = this.canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
-      this.rendered = true; hooks.onPageRendered(this); return;
+      this.dropDetail(); this.rendered = true; hooks.onPageRendered(this); return;
     }
     const src = S.sources.get(e.src);
     if (src?.isXfa) { await hooks.renderXfa(this); this.rendered = true; return; }
@@ -125,7 +143,7 @@ export class PageView {
     // canvas temporal per evitar parpelleig: es pinta fora de pantalla i es copia
     const buf = document.createElement('canvas'); buf.width = cw; buf.height = ch;
     try {
-      this.task = page.render({ canvas: buf, viewport, transform: out !== 1 ? [out, 0, 0, out, 0, 0] : null, annotationMode: e.src === S.mainId ? pdfjs.AnnotationMode.ENABLE_FORMS : pdfjs.AnnotationMode.ENABLE, optionalContentConfigPromise: ocConfig(e.src) });
+      this.task = page.render({ canvas: buf, viewport, transform: out !== 1 ? [out, 0, 0, out, 0, 0] : null, ...renderOpts(e) });
       await this.task.promise;
     } catch (err) {
       if (err?.name === 'RenderingCancelledException') return;
@@ -135,6 +153,8 @@ export class PageView {
     this.canvas.width = cw; this.canvas.height = ch;
     this.canvas.getContext('2d').drawImage(buf, 0, 0);
     this.rendered = true;
+    this.cover = null;
+    if (this.lowRes) this.renderDetail(); else this.dropDetail();
 
     // capa de text (selecció, resaltat, edició de text)
     this.textDiv.replaceChildren();
@@ -149,9 +169,51 @@ export class PageView {
     hooks.onPageRendered(this);
   }
 
+  // Quan la pàgina sencera no arriba a la resolució de pantalla, es pinta a part la zona visible
+  // (amb marge) a resolució completa. Només es repinta si la zona visible surt de la que ja hi ha.
+  async renderDetail() {
+    const e = this.entry;
+    if (!e || e.blank || !this.lowRes || !this.visible || !this.rendered) return;
+    const sc = this.viewer.scroller.getBoundingClientRect(), r = this.el.getBoundingClientRect();
+    const { dw, dh, token } = this;
+    const x0 = Math.max(0, sc.left - r.left), y0 = Math.max(0, sc.top - r.top);
+    const x1 = Math.min(dw, sc.right - r.left), y1 = Math.min(dh, sc.bottom - r.top);
+    if (x1 <= x0 || y1 <= y0) return;
+    const c = this.cover;
+    if (c && c.token === token && x0 >= c.x0 - 1 && y0 >= c.y0 - 1 && x1 <= c.x1 + 1 && y1 <= c.y1 + 1) return;
+    // marge: fins a mitja zona visible per banda, dins el pressupost de píxels
+    const vw = x1 - x0, vh = y1 - y0;
+    const k = Math.sqrt(DETAIL_PIXELS / (vw * vh * this.dpr * this.dpr));
+    const d = k < 1 ? this.dpr * k : this.dpr, g = clamp(k, 1, 2);
+    const mx = vw * (g - 1) / 2, my = vh * (g - 1) / 2;
+    const px0 = Math.floor(Math.max(0, x0 - mx) * d), py0 = Math.floor(Math.max(0, y0 - my) * d);
+    const cw = Math.ceil(Math.min(dw, x1 + mx) * d) - px0, ch = Math.ceil(Math.min(dh, y1 + my) * d) - py0;
+    const dtok = ++this.dtoken;
+    this.dtask?.cancel?.(); this.dtask = null;
+    const page = await getPdfPage(e.src, e.idx);
+    if (dtok !== this.dtoken || token !== this.token) return;
+    const viewport = entryViewport(page, e, this.s, this.rot);
+    const buf = document.createElement('canvas'); buf.width = cw; buf.height = ch;
+    try {
+      this.dtask = page.render({ canvas: buf, viewport, transform: [d, 0, 0, d, -px0, -py0], ...renderOpts(e) });
+      await this.dtask.promise;
+    } catch (err) {
+      if (err?.name !== 'RenderingCancelledException') console.warn('detail', err);
+      return;
+    }
+    if (dtok !== this.dtoken || token !== this.token) return;
+    this.dtask = null;
+    this.detail.width = cw; this.detail.height = ch;
+    this.detail.getContext('2d').drawImage(buf, 0, 0);
+    this.detailRect = { x: px0 / d / dw, y: py0 / d / dh, w: cw / d / dw, h: ch / d / dh };
+    this.cover = { token, x0: px0 / d, y0: py0 / d, x1: (px0 + cw) / d, y1: (py0 + ch) / d };
+    this.placeDetail(); this.detail.hidden = false;
+  }
+
   release() {
     this.token++;
     this.task?.cancel?.(); this.task = null;
+    this.dropDetail();
     this.canvas.width = 1; this.canvas.height = 1;
     this.textDiv.replaceChildren();
     this.formLayer.replaceChildren(); this.objLayer.replaceChildren(); this.hlLayer.replaceChildren(); this.findLayer.replaceChildren();
@@ -182,7 +244,10 @@ export class Viewer {
     this.renderQueue = [];
     this.working = 0;
     let raf = 0;
-    scroller.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.updateCurrent(); }); }, { passive: true });
+    let dt = 0;
+    const details = () => { clearTimeout(dt); dt = setTimeout(() => { for (const pv of this.views.values()) if (pv.lowRes && pv.visible) pv.renderDetail(); }, 120); };
+    scroller.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.updateCurrent(); }); details(); }, { passive: true });
+    window.addEventListener('resize', details);
   }
 
   queueRender(pv) {
@@ -244,7 +309,7 @@ export class Viewer {
   }
 
   setZoom(z, keepCenter = true) {
-    z = clamp(z, 0.1, 6);
+    z = clamp(z, 0.1, MAX_ZOOM);
     if (Math.abs(z - S.zoom) < 1e-4) return;
     const sc = this.scroller;
     const fy = (sc.scrollTop + sc.clientHeight / 2) / Math.max(1, sc.scrollHeight);
