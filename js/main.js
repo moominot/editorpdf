@@ -22,6 +22,7 @@ import * as session from './session.js';
 
 addStrings({
   print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
+  sideToggle: ['Mostra o amaga les pàgines', 'Mostrar u ocultar las páginas', 'Show or hide pages'],
   mPrint: ['Imprimeix', 'Imprimir', 'Print'],
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
   installApp: ["Instal·la l'app (Obre amb… des de Windows)", 'Instalar la app (Abrir con… desde Windows)', 'Install app (Open with… from Windows)'],
@@ -289,7 +290,14 @@ $('#btn-ocr').addEventListener('click', async () => { if (!S.mainId) return toas
 $('#btn-find').addEventListener('click', toggleFind);
 $('#btn-attach').addEventListener('click', () => showAttachments());
 $('#btn-print').addEventListener('click', printDoc);
-$('#btn-sidebar').addEventListener('click', () => document.body.classList.toggle('side-open'));
+// Al mòbil la barra lateral és un calaix; a l'escriptori es pot amagar (i es recorda)
+const NARROW = matchMedia('(max-width: 820px)');
+try { document.body.classList.toggle('side-hidden', localStorage.getItem('pdfsimple.sidebar') === 'hidden'); } catch {}
+$('#btn-sidebar').addEventListener('click', () => {
+  if (NARROW.matches) { document.body.classList.toggle('side-open'); return; }
+  const hidden = document.body.classList.toggle('side-hidden');
+  try { localStorage.setItem('pdfsimple.sidebar', hidden ? 'hidden' : 'shown'); } catch {}
+});
 $('#sidebar-scrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 
 async function printDoc() { objects.finishEdit(); (await import('./print.js')).printDocument(); }

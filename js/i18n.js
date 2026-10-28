@@ -38,7 +38,6 @@ const D = {
   rotR: ['Gira a la dreta', 'Girar a la derecha', 'Rotate right'],
   dupPage: ['Duplica pàgina', 'Duplicar página', 'Duplicate page'],
   addBlank: ['Afegeix pàgina en blanc', 'Añadir página en blanco', 'Add blank page'],
-  insertPdf: ['Insereix PDF', 'Insertar PDF', 'Insert PDF'],
   importPages: ['Insereix pàgines d\'un altre PDF', 'Insertar páginas de otro PDF', 'Insert pages from another PDF'],
   extractPages: ['Extreu pàgines a un nou PDF', 'Extraer páginas a un nuevo PDF', 'Extract pages to new PDF'],
   delPages: ['Elimina pàgines (Supr)', 'Eliminar páginas (Supr)', 'Delete pages (Del)'],
