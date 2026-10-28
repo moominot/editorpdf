@@ -3,6 +3,7 @@ import { S } from './state.js';
 import { pageInfo, getPdfPage } from './pdfsource.js';
 import { hexToRgb01 } from './util.js';
 import { BASELINE, LINE_H } from './objects.js';
+import { writeAttachments } from './attachments.js';
 
 const L = () => window.PDFLib;
 const FONTKIT = () => window.fontkit;
@@ -253,12 +254,12 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
   if (!onlyPages && S.pristine) return main.bytes;
   const entries = onlyPages ? S.pages.filter((p) => onlyPages.includes(p.id)) : S.pages;
 
-  let doc = null, list = [], fonts;
+  let doc = null, list = [], fonts, raster = false;
   try { doc = await PDFDocument.load(main.bytes, { updateMetadata: false, throwOnInvalidObject: false }); }
   catch (err) { if (!/encrypt/i.test(String(err?.message || err))) throw err; }
 
   if (!doc) {
-    ({ doc, list } = await rasterPages(entries, progress));
+    ({ doc, list } = await rasterPages(entries, progress)); raster = true;
     fonts = new FontPool(doc);
   } else {
     fonts = new FontPool(doc);
@@ -304,6 +305,7 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
     }
     progress?.(0.5 + ++n / (list.length * 2));
   }
+  await writeAttachments(doc, raster);
   return await doc.save({ useObjectStreams: false });
 }
 

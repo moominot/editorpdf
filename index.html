@@ -49,6 +49,7 @@
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14.5 7"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7h-3"/><path d="M7 14h10v7H7z"/></symbol>
   </defs>
 </svg>
@@ -113,6 +114,7 @@
         <button class="ib" id="btn-print" data-i18n-title="print"><svg><use href="#i-print"/></svg><span class="more-label" data-i18n="mPrint">Imprimeix</span></button>
         <button class="ib" id="btn-find"data-i18n-title="find"><svg><use href="#i-find"/></svg><span class="more-label" data-i18n="mFind">Cerca</span></button>
         <button class="ib" id="btn-ocr" data-i18n-title="ocr"><svg><use href="#i-ocr"/></svg><span class="more-label" data-i18n="mOcr">OCR</span></button>
+        <button class="ib" id="btn-attach" data-i18n-title="atMenu"><svg><use href="#i-clip"/></svg><span class="more-label" data-i18n="atMenu">Fitxers adjunts</span></button>
         <button class="ib" id="btn-settings" data-i18n-title="settings"><svg><use href="#i-gear"/></svg><span class="more-label" data-i18n="settings">Ajustos</span></button>
       </div>
     </div>
@@ -179,6 +181,7 @@
   <footer id="status">
     <span id="st-file"></span>
     <span id="st-sigs" hidden role="button" tabindex="0" style="cursor:pointer;font-weight:600"></span>
+    <span id="st-att" hidden role="button" tabindex="0" style="cursor:pointer"></span>
     <span id="st-page"></span>
     <span id="st-msg"></span>
   </footer>

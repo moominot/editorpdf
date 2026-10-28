@@ -8,6 +8,8 @@ export const S = {
   forms: {},            // nomCamp -> valor
   images: new Map(),    // imgId -> { bytes, mime, w, h, url }
   ocrStore: new Map(),  // id -> { words:[...] } (fora de l'historial per no engreixar-lo)
+  attach: [],           // fitxers adjunts: [{ id, key (clau a l'original) | data (id a attachData), name, desc, size, mime }]
+  attachData: new Map(), // id -> bytes dels adjunts afegits (fora de l'historial)
   file: { name: '', handle: null, nearHandle: null, driveId: null, driveParents: null }, // nearHandle: fitxer local a la carpeta del qual es desa (p. ex. l'original d'un document signat)
   dirty: false,
   pristine: true,       // true si no hi ha cap canvi respecte als bytes originals
@@ -45,11 +47,11 @@ export function findObj(sel) {
 
 // ---------- historial ----------
 let hist = [], hi = -1;
-const snap = () => JSON.stringify({ pages: S.pages, forms: S.forms });
+const snap = () => JSON.stringify({ pages: S.pages, forms: S.forms, attach: S.attach });
 
 export function resetHistory() { hist = [snap()]; hi = 0; emit('history'); }
 
-// Crida després de qualsevol mutació de S.pages / S.forms
+// Crida després de qualsevol mutació de S.pages / S.forms / S.attach
 export function commit(kind = 'content') {
   const s = snap();
   if (hist[hi] === s) { emit('history'); return; }
@@ -65,7 +67,7 @@ export const canUndo = () => hi > 0;
 export const canRedo = () => hi < hist.length - 1;
 function restore() {
   const o = JSON.parse(hist[hi]);
-  S.pages = o.pages; S.forms = o.forms;
+  S.pages = o.pages; S.forms = o.forms; S.attach = o.attach || [];
   S.sel = null;
   const alive = new Set(S.pages.map((p) => p.id));
   S.pageSel = new Set([...S.pageSel].filter((p) => alive.has(p)));
@@ -86,7 +88,7 @@ export function resetDoc(keepSources = false) {
   if (!keepSources) { for (const s of S.sources.values()) { try { s.doc?.destroy(); } catch {} } S.sources.clear(); }
   S.pages = []; S.forms = {}; S.mainId = null;
   for (const i of S.images.values()) URL.revokeObjectURL(i.url);
-  S.images.clear(); S.ocrStore.clear();
+  S.images.clear(); S.ocrStore.clear(); S.attach = []; S.attachData.clear();
   S.sel = null; S.pageSel = new Set(); S.cur = 0; S.dirty = false; S.pristine = true;
   S.file = { name: '', handle: null, nearHandle: null, driveId: null, driveParents: null };
 }

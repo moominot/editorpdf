@@ -37,4 +37,12 @@ const rf = await r2.embedFont(StandardFonts.Helvetica);
 const rp = r2.addPage([400, 300]); rp.setRotation(degrees(90));
 rp.drawText('Pàgina rotada 90°', { x: 40, y: 150, size: 20, font: rf });
 writeFileSync('tests/pdfs/rotada.pdf', await r2.save());
+
+// adjunts: un PDF i un text (arbre /EmbeddedFiles)
+const a = await PDFDocument.create();
+const af = await a.embedFont(StandardFonts.Helvetica);
+a.addPage([595, 842]).drawText('Document amb fitxers adjunts', { x: 50, y: 780, size: 18, font: af });
+await a.attach(await doc.save(), 'annex-multipagina.pdf', { mimeType: 'application/pdf', description: 'Annex en PDF' });
+await a.attach(new TextEncoder().encode('Hola, adjunt de prova àèòç\n'), 'notes.txt', { mimeType: 'text/plain', description: 'Notes' });
+writeFileSync('tests/pdfs/adjunts.pdf', await a.save());
 console.log('ok');

@@ -14,6 +14,7 @@ Es pot allotjar tal qual a **GitHub Pages** (és tot HTML/CSS/JS estàtic; les l
 | **Formularis** | AcroForm (text, caselles, opcions, llistes) i **XFA** (només omplir i desar). |
 | **OCR** | Converteix un PDF escanejat en cercable i seleccionable (català, castellà, anglès), al navegador. |
 | **Fitxers** | Obre i **desa sobre el mateix fitxer** de l'ordinador (Chrome/Edge); els fitxers nous (*Desa com a…*, el document signat, pàgines extretes) es proposen a la mateixa carpeta que l'original; arrossega PDF a la finestra; a la resta de navegadors, descàrrega. |
+| **Fitxers adjunts** | Botó del clip (i etiqueta 📎 a la barra d'estat): llista els fitxers adjunts del PDF, els **descarrega**, obre els PDF adjunts, n'**afegeix** i n'**elimina** (es pot desfer; s'aplica en desar). Els adjunts dins d'anotacions de pàgina només es poden descarregar. |
 | **Google Drive** | Obre PDF des de Drive i desa'ls a Drive (nou o actualitzant el mateix fitxer). |
 | **Signatura** | **AutoFirma** (escriptori), **AutoFirma mòbil** (via el teu servidor intermediari), **certificat .p12/.pfx** al navegador (PAdES-B-B) i signatura manuscrita visual. |
 | **Mòbil** | Interfície tàctil: barra lateral com a calaix, gest de pessic, eines amb el dit. |

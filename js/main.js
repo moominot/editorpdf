@@ -17,6 +17,7 @@ import { buildPdf } from './export.js';
 import { cfg, setCfg, getOverrides } from './config.js';
 import './xfa.js';
 import { showSignatures } from './sigpanel.js';
+import { showAttachments, initAttachments } from './attachments.js';
 
 addStrings({
   print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
@@ -84,6 +85,7 @@ export async function loadDocument(bytes, name, extra = {}) {
   S.pages = Array.from({ length: src.numPages }, (_, i) => newPage(src.id, i));
   S.file = { name, handle: extra.handle || null, nearHandle: extra.nearHandle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null };
   S.zoom = 1;
+  await initAttachments();
   resetHistory();
   emit('selection', null);
   $('#empty').hidden = true;
@@ -115,7 +117,7 @@ export function openInNewWindow(bytes, name, extra = {}) {
   window.addEventListener('message', onMsg);
   return true;
 }
-async function openDocument(bytes, name, extra = {}) {
+export async function openDocument(bytes, name, extra = {}) {
   if (S.mainId && !extra.force && openInNewWindow(bytes, name, extra)) return true;
   return loadDocument(bytes, name, extra);
 }
@@ -238,6 +240,7 @@ on('pageSelection', updateUi);
 window.addEventListener('beforeunload', (e) => { if (S.dirty && !window.__suppressUnload) { e.preventDefault(); e.returnValue = ''; } });
 
 $('#st-sigs').addEventListener('click', () => showSignatures());
+$('#st-att').addEventListener('click', () => showAttachments());
 $('#st-page').addEventListener('click', async () => {
   if (!S.pages.length) return;
   const v = await promptDlg(t('pageGoto', S.pages.length), String(S.cur + 1), 'number');
@@ -278,6 +281,7 @@ $('#zoom-val').addEventListener('focus', (e) => e.target.select());
 $('#btn-settings').addEventListener('click', () => showSettings());
 $('#btn-ocr').addEventListener('click', async () => { if (!S.mainId) return toast(t('needDoc'), 'err'); const m = await import('./ocr.js'); m.runOcrDialog(); });
 $('#btn-find').addEventListener('click', toggleFind);
+$('#btn-attach').addEventListener('click', () => showAttachments());
 $('#btn-print').addEventListener('click', printDoc);
 $('#btn-sidebar').addEventListener('click', () => document.body.classList.toggle('side-open'));
 $('#sidebar-scrim').addEventListener('click', () => document.body.classList.remove('side-open'));

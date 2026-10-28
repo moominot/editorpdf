@@ -137,5 +137,38 @@ await test('llegeix i comprova una signatura pròpia; detecta alteracions', asyn
   assert.equal((await listSignatures(bad))[0].integrity, 'bad');
 });
 
+// ---------------------------------------------------------------- fitxers adjunts
+console.log('Fitxers adjunts');
+{
+  const { embeddedFiles, setEmbeddedFiles } = await import('../js/embedded.js');
+  const { PDFDocument, PDFName, PDFArray } = PDFLib;
+  const src = readFileSync(new URL('./pdfs/adjunts.pdf', import.meta.url));
+  const roundTrip = async (doc) => PDFDocument.load(await doc.save());
+  await test('llegeix els adjunts existents', async () => {
+    const l = embeddedFiles(await PDFDocument.load(src));
+    assert.deepEqual(l.map((a) => a.name), ['annex-multipagina.pdf', 'notes.txt']);
+    assert.equal(l[1].desc, 'Notes');
+    assert.equal(new TextDecoder().decode(l[1].bytes), 'Hola, adjunt de prova àèòç\n');
+  });
+  await test('elimina un i n\'afegeix un altre amb nom repetit i accents', async () => {
+    const doc = await PDFDocument.load(src);
+    setEmbeddedFiles(doc, { keep: new Set(['notes.txt']), add: [{ name: 'notes.txt', desc: 'Còpia', mime: 'text/plain', bytes: new Uint8Array([1, 2, 3]) }, { name: 'pressupost ñ.bc3', bytes: new Uint8Array([9]) }] });
+    const l = embeddedFiles(await roundTrip(doc));
+    assert.deepEqual(l.map((a) => a.key), ['notes.txt', 'notes.txt (2)', 'pressupost ñ.bc3']);
+    assert.equal(l[1].name, 'notes.txt'); assert.equal(l[1].desc, 'Còpia'); assert.deepEqual([...l[1].bytes], [1, 2, 3]);
+  });
+  await test('sense adjunts desapareix /Names i /AF es manté coherent', async () => {
+    const doc = await PDFDocument.load(src);
+    const refs = embeddedFiles(doc).length;
+    doc.catalog.set(PDFName.of('AF'), doc.context.obj(doc.catalog.lookup(PDFName.of('Names')).lookup(PDFName.of('EmbeddedFiles')).lookup(PDFName.of('Names')).asArray().filter((_, i) => i % 2)));
+    assert.equal(doc.catalog.lookup(PDFName.of('AF')).size(), refs);
+    setEmbeddedFiles(doc, { keep: new Set(), add: [] });
+    const out = await roundTrip(doc);
+    assert.equal(embeddedFiles(out).length, 0);
+    assert.equal(out.catalog.lookup(PDFName.of('Names')), undefined);
+    assert.ok(out.catalog.lookup(PDFName.of('AF')) instanceof PDFArray && out.catalog.lookup(PDFName.of('AF')).size() === 0);
+  });
+}
+
 console.log(`\n${passed} correctes, ${failed} fallides`);
 process.exit(failed ? 1 : 0);
