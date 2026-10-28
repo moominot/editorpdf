@@ -13,7 +13,7 @@ Es pot allotjar tal qual a **GitHub Pages** (és tot HTML/CSS/JS estàtic; les l
 | **Editar el text existent** | Eina `E`: clic sobre un fragment de text i canvia'l. En desar, s'elimina el text original del fitxer (no només es tapa). |
 | **Formularis** | AcroForm (text, caselles, opcions, llistes) i **XFA** (només omplir i desar). |
 | **OCR** | Converteix un PDF escanejat en cercable i seleccionable (català, castellà, anglès), al navegador. |
-| **Fitxers** | Obre i **desa sobre el mateix fitxer** de l'ordinador (Chrome/Edge); els fitxers nous (*Desa com a…*, el document signat, pàgines extretes) es proposen a la mateixa carpeta que l'original; arrossega PDF a la finestra; a la resta de navegadors, descàrrega. |
+| **Fitxers** | Obre i **desa sobre el mateix fitxer** de l'ordinador (Chrome/Edge); els fitxers nous (*Desa com a…*, el document signat, pàgines extretes) es proposen a la mateixa carpeta que l'original; arrossega PDF a la finestra; a la resta de navegadors, descàrrega. **Impressió** només del document (`Ctrl+P`). Si es recarrega la pàgina (`F5`), es recupera el document amb els canvis i l'historial de desfer (es desa al navegador, per pestanya). |
 | **Fitxers adjunts** | Botó del clip (i etiqueta 📎 a la barra d'estat): llista els fitxers adjunts del PDF, els **descarrega**, obre els PDF adjunts, n'**afegeix** i n'**elimina** (es pot desfer; s'aplica en desar). Els adjunts dins d'anotacions de pàgina només es poden descarregar. |
 | **Google Drive** | Obre PDF des de Drive i desa'ls a Drive (nou o actualitzant el mateix fitxer). |
 | **Signatura** | **AutoFirma** (escriptori), **AutoFirma mòbil** (via el teu servidor intermediari), **certificat .p12/.pfx** al navegador (PAdES-B-B) i signatura manuscrita visual. |

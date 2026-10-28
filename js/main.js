@@ -1,5 +1,5 @@
 // Aplicació principal: orquestra visor, miniatures, fitxers i accions
-import { S, on, emit, commit, resetDoc, resetHistory, undo, redo, canUndo, canRedo, newPage, pageIndex, pageById, findObj } from './state.js';
+import { S, on, emit, commit, resetDoc, resetHistory, setHistory, undo, redo, canUndo, canRedo, newPage, pageIndex, pageById, findObj } from './state.js';
 import { $, $$, el, clamp, baseName, downloadBlob, readFileBytes, sleep } from './util.js';
 import { initLang, t, setLang, getLang, applyI18n, addStrings } from './i18n.js';
 import { toast, setStatus, modal, confirmDlg, alertDlg, promptDlg, progressDlg, initMenus } from './ui.js';
@@ -18,6 +18,7 @@ import { cfg, setCfg, getOverrides } from './config.js';
 import './xfa.js';
 import { showSignatures } from './sigpanel.js';
 import { showAttachments, initAttachments } from './attachments.js';
+import * as session from './session.js';
 
 addStrings({
   print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
@@ -31,6 +32,8 @@ addStrings({
   extractName: ['Extret', 'Extraído', 'Extract'],
   pageGoto: ['Ves a la pàgina (1-{0}):', 'Ir a la página (1-{0}):', 'Go to page (1-{0}):'],
   saving: ['Desant…', 'Guardando…', 'Saving…'],
+  restoringDoc: ['Recuperant el document…', 'Recuperando el documento…', 'Restoring document…'],
+  restored: ['Recuperat {0} amb els canvis', 'Recuperado {0} con los cambios', 'Restored {0} with your changes'],
   openingDoc: ['Obrint document…', 'Abriendo documento…', 'Opening document…'],
   signedLoaded: ['Aquest PDF té signatures digitals: si el modifiques es perdrà la seva validesa.', 'Este PDF tiene firmas digitales: si lo modificas perderán su validez.', 'This PDF has digital signatures: modifying it will invalidate them.'],
   xfaOnly: ['Aquesta operació no està disponible en formularis XFA.', 'Esta operación no está disponible en formularios XFA.', 'This operation is not available for XFA forms.'],
@@ -121,7 +124,9 @@ export async function openDocument(bytes, name, extra = {}) {
   if (S.mainId && !extra.force && openInNewWindow(bytes, name, extra)) return true;
   return loadDocument(bytes, name, extra);
 }
-if (window.opener && location.hash === '#' + NEW_WIN_KEY) {
+const IS_CHILD = !!window.opener && location.hash === '#' + NEW_WIN_KEY;
+if (IS_CHILD) {
+  session.detach();
   history.replaceState(null, '', location.pathname + location.search);
   window.addEventListener('message', (e) => {
     if (e.source !== window.opener || e.origin !== location.origin || e.data?.type !== 'pdfsimple-open') return;
@@ -226,6 +231,7 @@ function updateUi() {
   document.title = (S.file.name ? (S.dirty ? '• ' : '') + S.file.name + ' — ' : '') + 'PDF Simple';
   $('#st-page').textContent = has ? `${t('page')} ${S.cur + 1} ${t('of')} ${S.pages.length}` : '';
   $('#zoom-val').value = Math.round(S.zoom * 100) + '%';
+  session.schedule();
 }
 on('history', updateUi);
 on('zoom', updateUi);
@@ -550,3 +556,40 @@ if (q.get('state') || q.get('id')) handleDriveLaunch();
 if (q.get('pdf') && new URL(q.get('pdf'), location.href).origin === location.origin) {
   fetch(q.get('pdf')).then((r) => r.arrayBuffer()).then((b) => loadDocument(new Uint8Array(b), q.get('pdf').split('/').pop(), { force: true }));
 }
+
+// ------------------------------------------------------------------ sessió (recuperació després de recarregar)
+$('#pages').addEventListener('input', () => session.schedule()); // formularis XFA: no passen per l'historial
+async function restoreSession() {
+  const r = await session.load();
+  if (!r) return session.cleanup(true);
+  const { rec, blobs } = r;
+  const prog = progressDlg(t('restoringDoc'));
+  try {
+    // primer la font principal: si no s'obre (p. ex. es cancel·la la contrasenya), no es recupera res
+    for (const s of [...rec.sources].sort((a, b) => (b.id === rec.mainId) - (a.id === rec.mainId))) {
+      await openSource(blobs.get(s.id), s.name, askPassword, s.id);
+    }
+    S.mainId = rec.mainId;
+    S.pages = rec.pages; S.forms = rec.forms; S.ocrStore = new Map(rec.ocr); S.attach = rec.attach || [];
+    for (const id of rec.attachData || []) S.attachData.set(id, blobs.get(id));
+    for (const i of rec.images) { const bytes = blobs.get(i.id); S.images.set(i.id, { ...i, bytes, url: URL.createObjectURL(new Blob([bytes], { type: i.mime })) }); }
+    if (rec.xfa) for (const [k, v] of rec.xfa) S.sources.get(S.mainId).doc.annotationStorage.setValue(k, v);
+    S.file = { ...rec.file, handle: rec.handle || null, nearHandle: rec.nearHandle || null };
+    S.dirty = rec.dirty; S.pristine = rec.pristine;
+    const cur = Math.min(rec.cur, S.pages.length - 1); // viewer.sync() mou S.cur en fer scroll
+    setHistory(rec.history);
+    emit('selection', null);
+    $('#empty').hidden = true;
+    await viewer.sync(); await thumbs.sync();
+    viewer.setZoom(rec.zoom, false); viewer.scrollToPage(cur);
+    updateUi();
+    emit('docLoaded', S.sources.get(S.mainId));
+    setStatus(t('restored', S.file.name));
+  } catch (e) {
+    console.warn('restore', e);
+    resetDoc(); viewer.clear(); thumbs.clear(); resetHistory(); updateUi();
+    session.cleanup(true); return;
+  } finally { prog.close(); }
+  session.cleanup();
+}
+if (!IS_CHILD && !q.get('state') && !q.get('id') && !q.get('pdf') && 'indexedDB' in window) restoreSession();

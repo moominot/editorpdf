@@ -31,7 +31,7 @@ export function hasSignatures(bytes) {
 }
 export function isEncrypted(bytes) { return findPattern(bytes, '/Encrypt') >= 0; }
 
-export async function openSource(bytes, name, askPassword) {
+export async function openSource(bytes, name, askPassword, id = uid('s')) {
   const task = pdfjs.getDocument({
     data: bytes.slice(),
     ...LOAD_OPTS,
@@ -46,7 +46,6 @@ export async function openSource(bytes, name, askPassword) {
     update(pw);
   };
   const doc = await task.promise;
-  const id = uid('s');
   const src = {
     id, name, bytes, doc, numPages: doc.numPages, password,
     encrypted: isEncrypted(bytes),

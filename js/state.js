@@ -63,6 +63,9 @@ export function commit(kind = 'content') {
   emit('changed', kind);
   emit('history');
 }
+// Per a la sessió desada (session.js): només els últims passos, perquè no s'engreixi
+export function getHistory(max = 50) { const from = Math.max(0, hi + 1 - max); return { hist: hist.slice(from, from + max), hi: hi - from }; }
+export function setHistory(h) { hist = h.hist; hi = h.hi; emit('history'); }
 export const canUndo = () => hi > 0;
 export const canRedo = () => hi < hist.length - 1;
 function restore() {
