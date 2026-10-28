@@ -1,11 +1,13 @@
 // Generació del PDF final amb pdf-lib a partir de l'estat (pàgines, objectes, formularis, OCR)
 import { S } from './state.js';
-import { pageInfo, getPdfPage } from './pdfsource.js';
+import { entryInfo, entryViewport, getPdfPage } from './pdfsource.js';
 import { hexToRgb01 } from './util.js';
 import { BASELINE, LINE_H } from './objects.js';
 import { writeAttachments } from './attachments.js';
 import { writeBookmarks } from './bookmarks.js';
 import { ocConfig, writeLayers } from './layers.js';
+import { MARKUP, exportMarkup } from './markup.js';
+import { cfg } from './config.js';
 
 const L = () => window.PDFLib;
 const FONTKIT = () => window.fontkit;
@@ -120,7 +122,7 @@ function drawInk(pg, o, view) {
 }
 
 function addMarkup(doc, pg, o, view) {
-  const { PDFString, PDFName } = L();
+  const { PDFHexString } = L();
   const ctx = doc.context;
   const [r, g, b] = hexToRgb01(o.color);
   const quads = []; let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
@@ -144,7 +146,8 @@ function addMarkup(doc, pg, o, view) {
   const sub = { hl: 'Highlight', ul: 'Underline', st: 'StrikeOut' }[o.type];
   const annot = ctx.obj({
     Type: 'Annot', Subtype: sub, Rect: [bx0, by0, bx1, by1], QuadPoints: quads, C: [r, g, b], F: 4,
-    AP: { N: apRef }, T: PDFString.of('PDF Simple'),
+    AP: { N: apRef }, T: PDFHexString.fromText(o.author || cfg('author') || 'PDF Simple'),
+    ...(o.note ? { Contents: PDFHexString.fromText(o.note) } : {}),
   });
   pg.node.addAnnot(ctx.register(annot));
 }
@@ -180,6 +183,7 @@ async function drawObjects(doc, pg, entry, view, fonts, imgCache) {
         break;
       }
       case 'hl': case 'ul': case 'st': addMarkup(doc, pg, o, view); break;
+      default: if (MARKUP.has(o.type)) await exportMarkup(doc, pg, o, view, fonts);
     }
   }
   // capa de text OCR invisible
@@ -230,11 +234,11 @@ async function rasterPages(entries, progress) {
   const out = await PDFDocument.create();
   const list = []; let n = 0;
   for (const e of entries) {
-    const info = e.blank ? { w: e.blank.w, h: e.blank.h, view: [0, 0, e.blank.w, e.blank.h], nativeRot: 0 } : await pageInfo(e.src, e.idx);
+    const info = await entryInfo(e);
     const pg = out.addPage([info.w, info.h]);
     if (!e.blank) {
       const page = await getPdfPage(e.src, e.idx);
-      const vp = page.getViewport({ scale: 2.2, rotation: 0 }); // sense rotar: la rotació s'aplica després com al camí normal
+      const vp = entryViewport(page, e, 2.2, 0); // sense rotar: la rotació s'aplica després com al camí normal
       const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
       await page.render({ canvas: cv, viewport: vp, optionalContentConfigPromise: ocConfig(e.src) }).promise;
       const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.88));
@@ -296,7 +300,11 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
   let n = 0;
   for (const x of list) {
     const { pg, e } = x;
-    const info = x.info || (e.blank ? { view: [0, 0, e.blank.w, e.blank.h], nativeRot: 0 } : await pageInfo(e.src, e.idx));
+    const info = x.info || await entryInfo(e);
+    if (e.box && !x.info) { // retall o mida de pàgina: totes les caixes iguals
+      const [bx0, by0, bx1, by1] = e.box;
+      for (const k of ['setMediaBox', 'setCropBox', 'setTrimBox', 'setBleedBox', 'setArtBox']) pg[k](bx0, by0, bx1 - bx0, by1 - by0);
+    }
     if (e.rot) pg.setRotation(degrees((pg.getRotation().angle + e.rot) % 360));
     for (const o of e.objs) if (o.type === 'rect' && o.rm && !x.info) {
       try { const m = await import('./textedit.js'); await m.stripTextInBox(doc, pg, o.rm, info.view); } catch (err) { console.warn('stripText', err); }

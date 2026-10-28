@@ -6,6 +6,7 @@ export const DEFAULTS = {
   googleAppId: '189007098864', // número del projecte de Google Cloud (prefix del Client ID)
   relayUrl: 'https://classificat-home.taile04fba.ts.net:10000', // URL del servidor intermediari per a AutoFirma mòbil (p. ex. https://servidor.tailnet.ts.net)
   ocrLangs: 'cat+spa+eng',
+  author: '', // nom que figura als comentaris, segells i mesures
 };
 const KEY = 'pdfsimple.cfg';
 let over = {};

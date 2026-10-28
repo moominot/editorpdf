@@ -4,7 +4,7 @@ import { el, readFileBytes, baseName, bytesToBase64 } from './util.js';
 import { t, addStrings } from './i18n.js';
 import { modal, toast, progressDlg, confirmDlg, alertDlg } from './ui.js';
 import { buildPdf } from './export.js';
-import { pageInfo } from './pdfsource.js';
+import { entryInfo } from './pdfsource.js';
 import { setPlacement, addObject } from './objects.js';
 import { setTool, addImageFile } from './tools.js';
 import { cfg } from './config.js';
@@ -131,7 +131,7 @@ function pickRect() {
 async function viewOf(pid) {
   const e = pageById(pid);
   if (!e) return null;
-  return e.blank ? { view: [0, 0, e.blank.w, e.blank.h], nativeRot: 0 } : pageInfo(e.src, e.idx);
+  return entryInfo(e);
 }
 
 export async function startSigning(kind) {

@@ -1,6 +1,6 @@
 // Visor de pàgines: renderitzat mandrós, zoom, capes (text, formularis, objectes)
 import { S, pageById, emit } from './state.js';
-import { pageInfo, getPdfPage, pdfjs } from './pdfsource.js';
+import { entryInfo, entryViewport, getPdfPage, pdfjs } from './pdfsource.js';
 import { el, clamp, localToDisplay, displayToLocal } from './util.js';
 import { ocConfig } from './layers.js';
 
@@ -61,11 +61,11 @@ export class PageView {
 
   async init() {
     const e = this.entry; if (!e) return;
-    this.info = e.blank ? { w: e.blank.w, h: e.blank.h, view: [0, 0, e.blank.w, e.blank.h], nativeRot: 0 } : await pageInfo(e.src, e.idx);
-    this.sig = `${e.src}:${e.idx}:${e.rot}`;
+    this.info = await entryInfo(e);
+    this.sig = this.signature();
     this.layout();
   }
-  signature() { const e = this.entry; return e ? `${e.src}:${e.idx}:${e.rot}` : ''; }
+  signature() { const e = this.entry; return e ? `${e.src}:${e.idx}:${e.rot}:${e.box || ''}` : ''; }
 
   layout() {
     if (!this.info) return;
@@ -121,7 +121,7 @@ export class PageView {
 
     const page = await getPdfPage(e.src, e.idx);
     if (token !== this.token) return;
-    const viewport = page.getViewport({ scale: s, rotation: rot });
+    const viewport = entryViewport(page, e, s, rot);
     // canvas temporal per evitar parpelleig: es pinta fora de pantalla i es copia
     const buf = document.createElement('canvas'); buf.width = cw; buf.height = ch;
     try {

@@ -1,6 +1,6 @@
 // OCR amb tesseract.js (WASM): crea una capa de text invisible perquè el PDF escanejat sigui cercable i seleccionable
 import { S, commit, pageIndex, emit } from './state.js';
-import { getPdfPage, pageInfo } from './pdfsource.js';
+import { getPdfPage, entryInfo, entryViewport } from './pdfsource.js';
 import { el, loadScript, displayToLocal, uid } from './util.js';
 import { t, addStrings } from './i18n.js';
 import { modal, toast, progressDlg } from './ui.js';
@@ -83,13 +83,13 @@ export async function runOcr(pages, langs, force) {
       prog.set(i / pages.length, t('ocrPage', i + 1, pages.length));
       if (!force && (await hasText(e)) && !e.blank) { skipped++; continue; }
       if (e.blank) continue;
-      const info = await pageInfo(e.src, e.idx);
+      const info = await entryInfo(e);
       const rot = (info.nativeRot + e.rot) % 360;
       const page = await getPdfPage(e.src, e.idx);
       let sc = 230 / 72;
       const dw = (rot % 180 ? info.h : info.w), dh = (rot % 180 ? info.w : info.h);
       if (dw * dh * sc * sc > 30e6) sc = Math.sqrt(30e6 / (dw * dh));
-      const vp = page.getViewport({ scale: sc, rotation: rot });
+      const vp = entryViewport(page, e, sc, rot);
       const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
       await page.render({ canvas: cv, viewport: vp }).promise;
       const { data } = await w.recognize(cv, {}, { blocks: true });

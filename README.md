@@ -9,6 +9,10 @@ Es pot allotjar tal qual a **GitHub Pages** (és tot HTML/CSS/JS estàtic; les l
 |---|---|
 | **Visor** | Zoom (botons, `Ctrl+roda`, pessic al mòbil, ajusta a amplada/pàgina), desplaçament continu, cerca (`Ctrl+F`). |
 | **Pàgines** | Barra lateral amb miniatures: arrossega per **reordenar** (també diverses a la vegada), **afegir** en blanc o d'un altre PDF, **duplicar**, **girar**, **esborrar**, **extreure** a un PDF nou. |
+| **Revisió de plànols** | Eina de **marques**: núvols de revisió, fletxes, línies, el·lipses, notes i segells (REVISAT, APROVAT…), amb autor (Ajustos), data i comentari; es desen com a **anotacions PDF reals** que Acrobat pot editar. Pestanya **Comentaris** amb totes les marques per pàgina (i les que ja portava el fitxer). |
+| **Mesures** | Distància, perímetre i àrea amb **escala** (1:50, 1:100… o **calibrada** sobre una cota coneguda), per pàgina; es desen com a anotacions de mesura. |
+| **Retallar i mida de pàgina** | Dibuixa el rectangle a conservar, retalla marges en mm o posa la pàgina a A4…A0 (centrada); es pot restaurar i desfer. |
+| **Comparar versions** | Compara el document amb una altra versió: diferències en vermell (eliminat) i verd (afegit) amb requadres a cada zona, o superposició; **informe PDF** de totes les pàgines. |
 | **Marcadors i capes** | La barra lateral té pestanyes: *Pàgines*, *Marcadors* (anar-hi, afegir a la vista actual, reanomenar, eliminar, reordenar i niuar; es pot desfer) i *Capes* si el PDF en té (p. ex. plànols d'AutoCAD): mostra o amaga cada capa, i en desar es guarda com a estat inicial. |
 | **Edició** | Quadres de text (fonts, mida, color, negreta/cursiva), **ressaltar / subratllar / ratllar** text (anotacions reals del PDF), dibuix a mà alçada, rectangles (també per tapar), imatges, desfés/refés (`Ctrl+Z`/`Ctrl+Y`). |
 | **Editar el text existent** | Eina `E`: clic sobre un fragment de text i canvia'l. En desar, s'elimina el text original del fitxer (no només es tapa). |

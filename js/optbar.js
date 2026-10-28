@@ -7,6 +7,8 @@ import { updateSelected, deleteSelected, duplicateSelected, rotateSelected, ROTA
 addStrings({ angle: ['Angle', 'Ángulo', 'Angle'] });
 
 let bar;
+// Opcions d'eines i tipus d'objecte d'altres mòduls (marques, mesures): kind -> ({ o, kids, apply, rebuild, swatches, colorInput, label })
+export const optHooks = {};
 const HL_COLORS = ['#ffe600', '#7CFC00', '#00e5ff', '#ff80ab', '#ffab40'];
 const LN_COLORS = ['#e11d48', '#1d4ed8', '#16a34a', '#000000'];
 
@@ -81,7 +83,9 @@ function rebuild() {
       break;
     }
     case 'edittext': kids.push(el('span', { class: 'hint tip', text: t('hintEditText') })); break;
-    default: kids.push(el('span', { class: 'hint tip', text: t('hintSelect') }));
+    default:
+      if (optHooks[kind]) optHooks[kind]({ o, kids, apply, rebuild, swatches, colorInput, label });
+      else kids.push(el('span', { class: 'hint tip', text: t('hintSelect') }));
   }
   if (o && ROTATABLE.includes(o.type)) {
     const ang = el('input', { type: 'number', min: 0, max: 359, step: 1, value: Math.round(o.rot || 0), title: t('angle') });

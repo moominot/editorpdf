@@ -1,6 +1,6 @@
 // Barra lateral amb miniatures: selecció múltiple i reordenació arrossegant
 import { S, pageIndex, emit } from './state.js';
-import { pageInfo, getPdfPage } from './pdfsource.js';
+import { entryInfo, entryViewport, getPdfPage } from './pdfsource.js';
 import { el, clamp } from './util.js';
 import { movePages } from './pageops.js';
 import { ocConfig, layersKey } from './layers.js';
@@ -41,7 +41,7 @@ export class Thumbs {
       let it = this.items.get(e.id);
       if (!it) it = this.make(e);
       it.num.textContent = i + 1;
-      it.sig = `${e.src}:${e.idx}:${e.rot}:${e.blank ? 'b' : ''}${e.src === S.mainId ? layersKey() : ''}`;
+      it.sig = `${e.src}:${e.idx}:${e.rot}:${e.blank ? 'b' : ''}:${e.box || ''}${e.src === S.mainId ? layersKey() : ''}`;
       if (it.sig !== it.renderedSig && it.visible) this.enqueue(it);
       const next = prev ? prev.nextSibling : this.list.firstChild;
       if (it.el !== next) this.list.insertBefore(it.el, next);
@@ -78,7 +78,7 @@ export class Thumbs {
   async draw(it, e) {
     const sig = it.sig;
     const dpr = Math.min(devicePixelRatio || 1, 2);
-    const info = e.blank ? { w: e.blank.w, h: e.blank.h, nativeRot: 0 } : await pageInfo(e.src, e.idx);
+    const info = await entryInfo(e);
     const rot = (info.nativeRot + e.rot) % 360;
     const w = rot % 180 ? info.h : info.w, h = rot % 180 ? info.w : info.h;
     const scale = THUMB_W / w;
@@ -87,7 +87,7 @@ export class Thumbs {
     if (e.blank) { const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); }
     else {
       const page = await getPdfPage(e.src, e.idx);
-      const vp = page.getViewport({ scale: scale * dpr, rotation: rot });
+      const vp = entryViewport(page, e, scale * dpr, rot);
       cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
       await page.render({ canvas: cv, viewport: vp, optionalContentConfigPromise: ocConfig(e.src) }).promise;
     }

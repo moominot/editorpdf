@@ -208,5 +208,45 @@ console.log('Marcadors i capes');
   });
 }
 
+// ---------------------------------------------------------------- marques de revisió i mesures
+console.log('Marques i mesures');
+{
+  const { addMarkupAnnot, polyArea, polyLength, cloudPath } = await import('../js/annots.js');
+  const { PDFDocument, PDFName, StandardFonts } = PDFLib;
+  await test('geometria: àrea, perímetre i núvol tancat', () => {
+    const sq = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    assert.equal(polyArea(sq), 100); assert.equal(polyLength(sq, true), 40);
+    const [s0, curves] = cloudPath(0, 0, 100, 50, 10);
+    assert.deepEqual(s0, [0, 0]); assert.deepEqual(curves.at(-1)[2], [0, 0]);
+  });
+  await test('escriu cada tipus com a anotació amb aparença, autor i comentari', async () => {
+    const doc = await PDFDocument.create();
+    const pg = doc.addPage([842, 595]), font = await doc.embedFont(StandardFonts.Helvetica), view = [0, 0, 842, 595];
+    const base = { color: '#e11d48', width: 1.5, note: 'Revisar àmbit', id: 'o1' };
+    const objs = [
+      { ...base, type: 'line', arrow: true, pts: [[10, 10], [100, 100]] },
+      { ...base, type: 'ellipse', x: 50, y: 50, w: 80, h: 40 },
+      { ...base, type: 'cloud', x: 200, y: 50, w: 120, h: 60 },
+      { ...base, type: 'note', x: 400, y: 50, w: 20, h: 20 },
+      { ...base, type: 'stamp', x: 500, y: 300, w: 160, h: 50, text: 'APROVAT', author: 'Antoni', dateText: '28/10/2026', stampName: 'Approved' },
+      { ...base, type: 'measure', kind: 'dist', pts: [[100, 400], [300, 400]], factor: 0.0353, unit: 'm', scaleLabel: '1:100', fs: 9 },
+      { ...base, type: 'measure', kind: 'area', pts: [[400, 400], [500, 400], [500, 500], [400, 500]], factor: 0.0353, unit: 'm', scaleLabel: '1:100', fs: 9 },
+    ];
+    for (const o of objs) addMarkupAnnot(doc, pg, o, view, font, { label: o.type === 'measure' ? '7,06 m' : '', author: 'Antoni Llull' });
+    const out = await PDFDocument.load(await doc.save());
+    const annots = out.getPage(0).node.Annots().asArray().map((r) => out.context.lookup(r));
+    assert.deepEqual(annots.map((a) => a.lookup(PDFName.of('Subtype')).asString()), ['/Line', '/Circle', '/Polygon', '/Text', '/Stamp', '/Line', '/Polygon']);
+    for (const a of annots) {
+      assert.ok(a.lookup(PDFName.of('AP')).lookup(PDFName.of('N')), 'té aparença');
+      assert.equal(a.lookup(PDFName.of('T')).decodeText(), 'Antoni Llull');
+    }
+    assert.equal(annots[0].lookup(PDFName.of('LE')).get(1).asString(), '/OpenArrow');
+    assert.equal(annots[2].lookup(PDFName.of('IT')).asString(), '/PolygonCloud');
+    assert.equal(annots[5].lookup(PDFName.of('IT')).asString(), '/LineDimension');
+    assert.equal(annots[5].lookup(PDFName.of('Contents')).decodeText(), '7,06 m\nRevisar àmbit');
+    assert.equal(annots[6].lookup(PDFName.of('Measure')).lookup(PDFName.of('X')).lookup(0).lookup(PDFName.of('C')).asNumber(), 0.0353);
+  });
+}
+
 console.log(`\n${passed} correctes, ${failed} fallides`);
 process.exit(failed ? 1 : 0);

@@ -25,8 +25,7 @@ async function run(q) {
   const needle = q.toLowerCase();
   for (const e of S.pages) {
     if (e.blank) continue;
-    const view = (await import('./pdfsource.js')).pageInfo;
-    const info = await view(e.src, e.idx);
+    const info = await (await import('./pdfsource.js')).entryInfo(e);
     for (const it of await pageText(e)) {
       const low = it.str.toLowerCase();
       let from = 0, i;

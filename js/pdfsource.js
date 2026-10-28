@@ -66,5 +66,20 @@ export async function pageInfo(srcId, idx) {
   infoCache.set(key, info);
   return info;
 }
+// Mida efectiva d'una entrada de S.pages: en blanc, original o retallada (e.box: [x0,y0,x1,y1] en coordenades PDF)
+export async function entryInfo(e) {
+  const base = e.blank ? { w: e.blank.w, h: e.blank.h, view: [0, 0, e.blank.w, e.blank.h], nativeRot: 0 } : await pageInfo(e.src, e.idx);
+  if (!e.box) return base;
+  const [x0, y0, x1, y1] = e.box;
+  return { ...base, view: [x0, y0, x1, y1], w: x1 - x0, h: y1 - y0, base: base.view };
+}
+// Viewport de pdf.js que mostra només e.box: desplaça el dibuix (el canvas ha de tenir la mida retallada)
+export function entryViewport(page, e, scale, rotation) {
+  const vp = page.getViewport({ scale, rotation });
+  if (!e.box) return vp;
+  const [x0, y0, x1, y1] = e.box;
+  const pts = [[x0, y0], [x1, y1], [x0, y1], [x1, y0]].map(([x, y]) => vp.convertToViewportPoint(x, y));
+  return page.getViewport({ scale, rotation, offsetX: -Math.min(...pts.map((p) => p[0])), offsetY: -Math.min(...pts.map((p) => p[1])) });
+}
 export async function getPdfPage(srcId, idx) { return S.sources.get(srcId).doc.getPage(idx + 1); }
 export function clearInfoCache() { infoCache.clear(); }

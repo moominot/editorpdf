@@ -20,12 +20,19 @@ import { showSignatures } from './sigpanel.js';
 import { showAttachments, initAttachments } from './attachments.js';
 import * as bookmarks from './bookmarks.js';
 import * as layers from './layers.js';
+import './markup.js';
+import * as comments from './comments.js';
+import { cropDialog } from './pagebox.js';
+import { startCompare } from './compare.js';
 import * as session from './session.js';
 
 addStrings({
   print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
   sideToggle: ['Mostra o amaga la barra lateral', 'Mostrar u ocultar la barra lateral', 'Show or hide the sidebar'],
   sideOutline: ['Marcadors', 'Marcadores', 'Bookmarks'],
+  sideComments: ['Comentaris', 'Comentarios', 'Comments'],
+  authorName: ['Nom als comentaris', 'Nombre en los comentarios', 'Name on comments'],
+  authorPh: ['p. ex. Antoni Llull, arquitecte', 'p. ej. Antoni Llull, arquitecto', 'e.g. Jane Doe, architect'],
   sideLayers: ['Capes', 'Capas', 'Layers'],
   mPrint: ['Imprimeix', 'Imprimir', 'Print'],
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
@@ -293,6 +300,7 @@ $('#btn-settings').addEventListener('click', () => showSettings());
 $('#btn-ocr').addEventListener('click', async () => { if (!S.mainId) return toast(t('needDoc'), 'err'); const m = await import('./ocr.js'); m.runOcrDialog(); });
 $('#btn-find').addEventListener('click', toggleFind);
 $('#btn-attach').addEventListener('click', () => showAttachments());
+$('#btn-compare').addEventListener('click', () => startCompare());
 $('#btn-print').addEventListener('click', printDoc);
 // Al mòbil la barra lateral és un calaix; a l'escriptori es pot amagar (i es recorda)
 const NARROW = matchMedia('(max-width: 820px)');
@@ -311,8 +319,10 @@ function showSide(which) {
   $('#side-actions').hidden = $('#thumbs').hidden = which !== 'pages';
   $('#pane-outline').hidden = which !== 'outline';
   $('#pane-layers').hidden = which !== 'layers';
+  $('#pane-comments').hidden = which !== 'comments';
   if (which === 'outline') bookmarks.render();
   if (which === 'layers') layers.render();
+  if (which === 'comments') comments.render();
 }
 $('#side-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-side]'); if (b) showSide(b.dataset.side); });
 on('docLoaded', () => {
@@ -348,6 +358,7 @@ $('#sidebar').addEventListener('click', async (e) => {
       if (ids.length > 1 && !(await confirmDlg(t('confirmDelPages', ids.length)))) break;
       pageops.deletePages(ids); break;
     case 'import': await importFromFile(lastIdx); break;
+    case 'crop': await cropDialog(ids); break;
     case 'extract': {
       try {
         let handle = null, name = baseName(S.file.name) + ' (' + t('extractName') + ').pdf';
@@ -532,6 +543,7 @@ async function showSettings() {
   const body = el('div', {},
     el('label', { class: 'row' }, el('span', { text: t('language') }), lang),
     el('label', { class: 'row' }, el('span', { text: t('theme') }), theme),
+    mk('author', t('authorName'), t('authorPh')),
     el('h3', { text: 'Google Drive' }), el('p', { class: 'muted', text: t('gdriveHelp') }),
     mk('googleClientId', t('gClientId'), '1234…apps.googleusercontent.com'), mk('googleApiKey', t('gApiKey'), 'AIza…'), mk('googleAppId', t('gAppId'), '1234567890'),
     el('h3', { text: 'AutoFirma / OCR' }),

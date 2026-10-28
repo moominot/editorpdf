@@ -2,7 +2,7 @@
 import { S, commit, newPage } from './state.js';
 import { uid, clone, parseRange } from './util.js';
 export { parseRange };
-import { openSource, pageInfo } from './pdfsource.js';
+import { openSource, entryInfo } from './pdfsource.js';
 
 export const selectionOrCurrent = () => {
   const ids = S.pages.filter((p) => S.pageSel.has(p.id)).map((p) => p.id);
@@ -38,10 +38,7 @@ export function duplicatePages(pids) {
 export async function insertBlank(afterIdx) {
   const ref = S.pages[Math.max(0, Math.min(afterIdx, S.pages.length - 1))];
   let w = 595.28, h = 841.89;
-  if (ref) {
-    if (ref.blank) ({ w, h } = ref.blank);
-    else { const info = await pageInfo(ref.src, ref.idx); const sw = (info.nativeRot + ref.rot) % 180; w = sw ? info.h : info.w; h = sw ? info.w : info.h; }
-  }
+  if (ref) { const info = await entryInfo(ref); const sw = (info.nativeRot + ref.rot) % 180; w = sw ? info.h : info.w; h = sw ? info.w : info.h; }
   const e = newPage(null, 0, { blank: { w, h } });
   S.pages.splice(afterIdx + 1, 0, e);
   commit('structure');

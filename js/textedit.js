@@ -1,7 +1,7 @@
 // Edició del text existent d'un PDF: se substitueix un fragment (rectangle de tapa + text nou) i, en desar,
 // s'intenta eliminar el text original del flux de contingut perquè no quedi sota la tapa.
 import { S, commit, pageById } from './state.js';
-import { getPdfPage, pageInfo } from './pdfsource.js';
+import { getPdfPage, entryInfo } from './pdfsource.js';
 import { uid } from './util.js';
 import { toast } from './ui.js';
 import { startEdit, selectObj, BASELINE } from './objects.js';
@@ -67,7 +67,7 @@ export async function editSpan(pv, span) {
   const [a, b, , , ex, ey] = item.transform;
   if (Math.abs(b) > 0.01 * Math.abs(a || 1)) return toast(t('teRotated'), 'err');
   const size = Math.hypot(a, b);
-  const info = await pageInfo(e.src, e.idx);
+  const info = await entryInfo(e);
   const page = await getPdfPage(e.src, e.idx);
   const f = guessFont(page, item, pv.textStyles);
   const cols = sampleColors(pv, span.getBoundingClientRect());

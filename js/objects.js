@@ -16,6 +16,13 @@ export const BASELINE = { Helvetica: 0.9465, Times: 0.9375, Courier: 0.8665 };
 export const LINE_H = 1.2;
 
 let editing = null;          // { pid, oid, node }
+// Tipus d'objecte afegits per altres mòduls (marques de revisió, mesures): així objects.js no els ha d'importar
+export const objHooks = {
+  build: {},          // tipus -> (pv, o, d, selected): omple l'element de l'objecte
+  tools: {},          // eina -> (ev, pv): clic sobre la pàgina amb l'eina activa
+  resizable: new Set(), // tipus amb nanses de mida (x, y, w, h)
+  refit: (o) => {},   // recalcula la caixa (i valors derivats) d'un objecte amb punts (o.pts)
+};
 let viewerRef = null;
 export const isEditing = () => !!editing;
 export function initObjects(viewer) { viewerRef = viewer; }
@@ -64,7 +71,7 @@ export function duplicateSelected() { copySelected(); return pasteObject(); }
 export function shiftObj(o, dx, dy) {
   if (o.rects) o.rects.forEach((r) => { r.x += dx; r.y += dy; });
   else if (o.paths) { o.paths.forEach((p) => p.forEach((pt) => { pt[0] += dx; pt[1] += dy; })); o.x += dx; o.y += dy; }
-  else { o.x += dx; o.y += dy; }
+  else { if (o.pts) o.pts.forEach((pt) => { pt[0] += dx; pt[1] += dy; }); o.x += dx; o.y += dy; }
 }
 export function objBounds(o) {
   if (o.rects) {
@@ -167,12 +174,13 @@ function buildObjEl(pv, o, selected) {
       d.append(svg);
       break;
     }
+    default: objHooks.build[o.type]?.(pv, o, d, selected);
   }
   if (o.rot && o.type !== 'textedit') d.style.transform = `rotate(${o.rot}deg)`;
-  if (selected && ROTATABLE.includes(o.type)) {
+  if (selected && (ROTATABLE.includes(o.type) || objHooks.resizable.has(o.type))) {
     const dirs = o.type === 'text' ? ['w', 'e'] : o.type === 'ink' ? [] : ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
     for (const dir of dirs) d.append(el('i', { class: 'h', 'data-d': dir }));
-    d.append(el('i', { class: 'rh' }));
+    if (ROTATABLE.includes(o.type)) d.append(el('i', { class: 'rh' }));
   }
   d.addEventListener('pointerdown', (ev) => onObjPointerDown(ev, pv, o.id));
   d.addEventListener('dblclick', () => { if (o.type === 'text' || o.type === 'textedit') startEdit(pv.pid, o.id); });
@@ -188,7 +196,7 @@ function pathD(pts) {
 // ---------------- arrossegar / redimensionar ----------------
 function onObjPointerDown(ev, pv, oid) {
   if (ev.button > 0 || editing) return;
-  if (S.tool !== 'select' && S.tool !== 'text') return;
+  if (S.tool !== 'select' && S.tool !== 'text' && !objHooks.tools[S.tool]) return;
   const e = pv.entry; const o = e.objs.find((x) => x.id === oid); if (!o) return;
   if (editing && editing.oid === oid) return;
   ev.stopPropagation();
@@ -196,6 +204,7 @@ function onObjPointerDown(ev, pv, oid) {
   selectObj(pv.pid, oid);
   const handle = ev.target.closest?.('.h');
   const dir = handle?.dataset.d || null;
+  const vi = ev.target.closest?.('.v')?.dataset.i ?? null; // vèrtex d'un objecte amb punts
   const start = pv.clientToLocalPt(ev.clientX, ev.clientY);
   const orig = clone(o);
   if (ev.target.closest?.('.rh')) return startRotate(ev, pv, oid);
@@ -206,7 +215,8 @@ function onObjPointerDown(ev, pv, oid) {
     if (!moved && Math.hypot(dx, dy) * pv.s < 4) return;
     moved = true;
     const live = e.objs.find((x) => x.id === oid); if (!live) return;
-    if (!dir) {
+    if (vi != null) { live.pts[vi] = [orig.pts[vi][0] + dx, orig.pts[vi][1] + dy]; objHooks.refit(live); }
+    else if (!dir) {
       // restaura i desplaça
       Object.assign(live, clone(orig)); shiftObj(live, dx, dy);
     } else if (orig.rot) resizeRotated(live, orig, dir, dx, dy, m.shiftKey);
@@ -330,7 +340,7 @@ export function finishEdit() {
 // ---------------- creació amb eines ----------------
 let pendingPlace = null; // { kind:'img', imgId, w, h } | { kind:'rect', resolve }
 
-export function needsCapture(tool) { return ['text', 'ink', 'rect'].includes(tool) || !!pendingPlace; }
+export function needsCapture(tool) { return ['text', 'ink', 'rect'].includes(tool) || !!objHooks.tools[tool] || !!pendingPlace; }
 export function setPlacement(p) { const old = pendingPlace; pendingPlace = p; if (old && old !== p) old.cancel?.(); emit('toolchange'); }
 export const getPlacement = () => pendingPlace;
 
@@ -360,6 +370,7 @@ function onPagePointerDown(ev) {
     return;
   }
   if (tool === 'ink' && ev.target === pv.capture) return startInk(ev, pv);
+  if (objHooks.tools[tool] && ev.target === pv.capture) return objHooks.tools[tool](ev, pv);
   if (tool === 'rect' && ev.target === pv.capture) return startRectDrag(ev, pv, (r) => {
     if (r.w < 3 || r.h < 3) return;
     const op = S.opts.rect;
@@ -547,7 +558,7 @@ export function updateSelected(props, final = true) {
   } else if (o.type === 'ink') {
     Object.assign(o, inkBBox(o.paths, o.width));
     viewerRef.refreshLayers(S.sel.pid);
-  } else viewerRef.refreshLayers(S.sel.pid);
+  } else { if (o.pts) objHooks.refit(o); viewerRef.refreshLayers(S.sel.pid); }
   if (final) commit('content');
   return true;
 }

@@ -56,12 +56,12 @@ kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: auto
 #findbar input { width: 260px; max-width: 50vw; }
 
 #body { flex: 1; display: flex; min-height: 0; position: relative; }
-#sidebar { width: 190px; flex: none; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); min-height: 0; }
+#sidebar { width: 210px; flex: none; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); min-height: 0; }
 #side-actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line); justify-content: center; }
 #side-actions .ib { height: 32px; min-width: 32px; padding: 0 6px; }
 /* pestanyes de la barra lateral: pàgines, marcadors i capes */
 #side-tabs { display: flex; border-bottom: 1px solid var(--line); flex: none; }
-#side-tabs button { flex: 1; min-width: 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 8px 2px 6px; font: inherit; font-size: 12px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#side-tabs button { flex: 1 1 auto; min-width: 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 8px 3px 6px; font: inherit; font-size: 11px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #side-tabs button:hover { color: var(--text); background: var(--panel2); }
 #side-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .side-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: 13px; }
@@ -82,6 +82,33 @@ kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: auto
 .ly-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
 .ly-row:hover { background: var(--panel2); }
 .ly-head { font-weight: 600; padding: 6px 6px 2px; color: var(--muted); }
+/* marques de revisió i mesures */
+.obj.mk { pointer-events: none; }
+.mk-preview, .mk-preview * { pointer-events: none !important; } /* la previsualització no ha de capturar els clics següents */
+.obj.mk.sel { outline: 1.5px dashed var(--sel); }
+.obj .h, .obj .v { pointer-events: auto; }
+.obj .v { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--sel); z-index: 3; cursor: crosshair; touch-action: none; }
+@media (any-pointer: coarse) { .obj .v { width: 20px; height: 20px; margin: -4px 0 0 -4px; } }
+/* comentaris */
+.cm-page { font-weight: 600; color: var(--muted); font-size: 12px; padding: 8px 6px 2px; }
+.cm-row { display: flex; gap: 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer; }
+.cm-row:hover { background: var(--panel2); }
+.cm-row.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.cm-row.file { opacity: .75; }
+.cm-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; }
+.cm-body { flex: 1; min-width: 0; }
+.cm-head { display: flex; flex-wrap: wrap; gap: 0 6px; font-size: 12px; }
+.cm-text { overflow-wrap: anywhere; white-space: pre-wrap; margin-top: 2px; }
+/* comparació */
+.modal.wide.cmp-modal { width: min(96vw, 1500px); max-width: none; height: 92vh; display: flex; flex-direction: column; }
+.modal.wide.cmp-modal .mb { flex: 1; min-height: 0; display: flex; }
+.cmp { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.cmp-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.modal .cmp-bar select { width: auto; flex: none; }
+.cmp-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.cmp-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.cmp-view { flex: 1; min-height: 0; overflow: auto; background: var(--panel2); border-radius: 8px; }
+.cmp-view canvas { display: block; background: #fff; }
 #thumbs { flex: 1; overflow-y: auto; padding: 10px 8px 40px; outline: none; position: relative; }
 .th { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px; margin-bottom: 6px; border-radius: 8px; border: 2px solid transparent; cursor: grab; user-select: none; -webkit-user-select: none; }
 .th:hover { background: var(--panel2); }

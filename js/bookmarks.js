@@ -3,7 +3,7 @@
 import { S, on, commit, pageIndex } from './state.js';
 import { el, $, uid } from './util.js';
 import { t, addStrings } from './i18n.js';
-import { pageInfo } from './pdfsource.js';
+import { pageInfo, entryInfo } from './pdfsource.js';
 import { writeOutline } from './pdfstruct.js';
 
 addStrings({
@@ -56,7 +56,7 @@ export async function writeBookmarks(doc, placed, { keep = false, prune = false 
       const x = it.pid ? byPid.get(it.pid) : null;
       let top = null;
       if (x && it.y != null) {
-        const view = x.info?.view || (x.e.blank ? [0, 0, x.e.blank.w, x.e.blank.h] : (await pageInfo(x.e.src, x.e.idx)).view);
+        const view = x.info?.view || (await entryInfo(x.e)).view;
         top = view[3] - it.y;
       }
       const items = await conv(it.items || []);
