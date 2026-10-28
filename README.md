@@ -9,6 +9,7 @@ Es pot allotjar tal qual a **GitHub Pages** (és tot HTML/CSS/JS estàtic; les l
 |---|---|
 | **Visor** | Zoom (botons, `Ctrl+roda`, pessic al mòbil, ajusta a amplada/pàgina), desplaçament continu, cerca (`Ctrl+F`). |
 | **Pàgines** | Barra lateral amb miniatures: arrossega per **reordenar** (també diverses a la vegada), **afegir** en blanc o d'un altre PDF, **duplicar**, **girar**, **esborrar**, **extreure** a un PDF nou. |
+| **Marcadors i capes** | La barra lateral té pestanyes: *Pàgines*, *Marcadors* (anar-hi, afegir a la vista actual, reanomenar, eliminar, reordenar i niuar; es pot desfer) i *Capes* si el PDF en té (p. ex. plànols d'AutoCAD): mostra o amaga cada capa, i en desar es guarda com a estat inicial. |
 | **Edició** | Quadres de text (fonts, mida, color, negreta/cursiva), **ressaltar / subratllar / ratllar** text (anotacions reals del PDF), dibuix a mà alçada, rectangles (també per tapar), imatges, desfés/refés (`Ctrl+Z`/`Ctrl+Y`). |
 | **Editar el text existent** | Eina `E`: clic sobre un fragment de text i canvia'l. En desar, s'elimina el text original del fitxer (no només es tapa). |
 | **Formularis** | AcroForm (text, caselles, opcions, llistes) i **XFA** (només omplir i desar). |

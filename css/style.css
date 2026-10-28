@@ -59,6 +59,29 @@ kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: auto
 #sidebar { width: 190px; flex: none; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); min-height: 0; }
 #side-actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line); justify-content: center; }
 #side-actions .ib { height: 32px; min-width: 32px; padding: 0 6px; }
+/* pestanyes de la barra lateral: pàgines, marcadors i capes */
+#side-tabs { display: flex; border-bottom: 1px solid var(--line); flex: none; }
+#side-tabs button { flex: 1; min-width: 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); padding: 8px 2px 6px; font: inherit; font-size: 12px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#side-tabs button:hover { color: var(--text); background: var(--panel2); }
+#side-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.side-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: 13px; }
+.side-tools { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line); justify-content: center; flex: none; }
+.side-tools .ib { height: 30px; min-width: 30px; padding: 0 5px; }
+.side-tools .tb { height: 30px; font-size: 12px; padding: 0 8px; }
+.side-list { flex: 1; overflow-y: auto; padding: 6px 4px 30px; outline: none; }
+.side-empty, .side-note { color: var(--muted); padding: 8px 10px; margin: 0; font-size: 12px; }
+.side-note { flex: none; border-top: 1px solid var(--line); }
+.bm-row { display: flex; align-items: flex-start; gap: 2px; padding: 3px 4px 3px 2px; border-radius: 6px; cursor: pointer; line-height: 1.3; }
+.bm-row:hover { background: var(--panel2); }
+.bm-row.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.bm-row.gone .bm-title { color: var(--muted); text-decoration: line-through; }
+.bm-tw { flex: none; width: 16px; border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; font-size: 11px; line-height: 1.6; }
+.bm-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bm-pg { flex: none; color: var(--muted); font-size: 11px; padding-left: 4px; line-height: 1.6; }
+.bm-edit { flex: 1; min-width: 0; font: inherit; padding: 1px 4px; }
+.ly-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
+.ly-row:hover { background: var(--panel2); }
+.ly-head { font-weight: 600; padding: 6px 6px 2px; color: var(--muted); }
 #thumbs { flex: 1; overflow-y: auto; padding: 10px 8px 40px; outline: none; position: relative; }
 .th { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px; margin-bottom: 6px; border-radius: 8px; border: 2px solid transparent; cursor: grab; user-select: none; -webkit-user-select: none; }
 .th:hover { background: var(--panel2); }

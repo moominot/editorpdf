@@ -31,7 +31,7 @@ function record() {
     updated: Date.now(), mainId: S.mainId,
     sources: [...S.sources.values()].map((s) => ({ id: s.id, name: s.name })),
     images: [...S.images].map(([id, i]) => ({ id, mime: i.mime, w: i.w, h: i.h })),
-    attach: S.attach, attachData: [...S.attachData.keys()],
+    attach: S.attach, attachData: [...S.attachData.keys()], outline: S.outline, layers: S.layers,
     pages: S.pages, forms: S.forms, ocr: [...S.ocrStore],
     xfa: main?.isXfa ? [...(main.doc.annotationStorage.serializable.map || [])] : null, // valors dels camps XFA
     file, handle, nearHandle, dirty: S.dirty, pristine: S.pristine, cur: S.cur, zoom: S.zoom, history: getHistory(),

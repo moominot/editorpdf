@@ -4,6 +4,8 @@ import { pageInfo, getPdfPage } from './pdfsource.js';
 import { hexToRgb01 } from './util.js';
 import { BASELINE, LINE_H } from './objects.js';
 import { writeAttachments } from './attachments.js';
+import { writeBookmarks } from './bookmarks.js';
+import { ocConfig, writeLayers } from './layers.js';
 
 const L = () => window.PDFLib;
 const FONTKIT = () => window.fontkit;
@@ -234,7 +236,7 @@ async function rasterPages(entries, progress) {
       const page = await getPdfPage(e.src, e.idx);
       const vp = page.getViewport({ scale: 2.2, rotation: 0 }); // sense rotar: la rotació s'aplica després com al camí normal
       const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
-      await page.render({ canvas: cv, viewport: vp }).promise;
+      await page.render({ canvas: cv, viewport: vp, optionalContentConfigPromise: ocConfig(e.src) }).promise;
       const blob = await new Promise((r) => cv.toBlob(r, 'image/jpeg', 0.88));
       const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
       pg.drawImage(img, { x: 0, y: 0, width: info.w, height: info.h });
@@ -254,7 +256,7 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
   if (!onlyPages && S.pristine) return main.bytes;
   const entries = onlyPages ? S.pages.filter((p) => onlyPages.includes(p.id)) : S.pages;
 
-  let doc = null, list = [], fonts, raster = false;
+  let doc = null, list = [], fonts, raster = false, identity = false;
   try { doc = await PDFDocument.load(main.bytes, { updateMetadata: false, throwOnInvalidObject: false }); }
   catch (err) { if (!/encrypt/i.test(String(err?.message || err))) throw err; }
 
@@ -283,7 +285,7 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
       list.push({ pg, e });
       progress?.(++n / (entries.length * 2));
     }
-    const identity = list.length === orig.length && list.every((x, i) => x.pg === orig[i]);
+    identity = list.length === orig.length && list.every((x, i) => x.pg === orig[i]);
     if (!identity) {
       for (let i = orig.length - 1; i >= 0; i--) doc.removePage(i);
       for (const { pg } of list) doc.addPage(pg);
@@ -306,6 +308,8 @@ export async function buildPdf({ onlyPages = null, progress = null } = {}) {
     progress?.(0.5 + ++n / (list.length * 2));
   }
   await writeAttachments(doc, raster);
+  await writeBookmarks(doc, list, { keep: identity && !onlyPages, prune: !!onlyPages });
+  if (!raster) writeLayers(doc);
   return await doc.save({ useObjectStreams: false });
 }
 

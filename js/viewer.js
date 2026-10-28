@@ -2,6 +2,7 @@
 import { S, pageById, emit } from './state.js';
 import { pageInfo, getPdfPage, pdfjs } from './pdfsource.js';
 import { el, clamp, localToDisplay, displayToLocal } from './util.js';
+import { ocConfig } from './layers.js';
 
 export const CSS_PER_PT = 96 / 72;
 const MAX_PIXELS = 24e6;
@@ -124,7 +125,7 @@ export class PageView {
     // canvas temporal per evitar parpelleig: es pinta fora de pantalla i es copia
     const buf = document.createElement('canvas'); buf.width = cw; buf.height = ch;
     try {
-      this.task = page.render({ canvas: buf, viewport, transform: out !== 1 ? [out, 0, 0, out, 0, 0] : null, annotationMode: e.src === S.mainId ? pdfjs.AnnotationMode.ENABLE_FORMS : pdfjs.AnnotationMode.ENABLE });
+      this.task = page.render({ canvas: buf, viewport, transform: out !== 1 ? [out, 0, 0, out, 0, 0] : null, annotationMode: e.src === S.mainId ? pdfjs.AnnotationMode.ENABLE_FORMS : pdfjs.AnnotationMode.ENABLE, optionalContentConfigPromise: ocConfig(e.src) });
       await this.task.promise;
     } catch (err) {
       if (err?.name === 'RenderingCancelledException') return;
@@ -273,6 +274,18 @@ export class Viewer {
     const e = S.pages[i]; if (!e) return;
     const pv = this.views.get(e.id); if (!pv) return;
     this.scroller.scrollTo({ top: pv.el.offsetTop - 12, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  // Pàgina i alçada local (punts des de dalt, sense rotar), p. ex. la destinació d'un marcador
+  scrollToPoint(i, y) {
+    const e = S.pages[i]; if (!e) return;
+    const pv = this.views.get(e.id); if (!pv) return;
+    let off = 0;
+    if (y && pv.info) { // punt més alt, a la pantalla, de la línia horitzontal y de la pàgina (amb qualsevol rotació)
+      const top = Math.min(pv.localToClient(0, y)[1], pv.localToClient(pv.info.w, y)[1]);
+      off = Math.max(0, top - pv.el.getBoundingClientRect().top);
+    }
+    this.scroller.scrollTo({ top: pv.el.offsetTop + off - 12 });
   }
 
   updateCurrent() {

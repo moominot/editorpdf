@@ -18,11 +18,15 @@ import { cfg, setCfg, getOverrides } from './config.js';
 import './xfa.js';
 import { showSignatures } from './sigpanel.js';
 import { showAttachments, initAttachments } from './attachments.js';
+import * as bookmarks from './bookmarks.js';
+import * as layers from './layers.js';
 import * as session from './session.js';
 
 addStrings({
   print: ['Imprimeix (Ctrl+P)', 'Imprimir (Ctrl+P)', 'Print (Ctrl+P)'],
-  sideToggle: ['Mostra o amaga les pàgines', 'Mostrar u ocultar las páginas', 'Show or hide pages'],
+  sideToggle: ['Mostra o amaga la barra lateral', 'Mostrar u ocultar la barra lateral', 'Show or hide the sidebar'],
+  sideOutline: ['Marcadors', 'Marcadores', 'Bookmarks'],
+  sideLayers: ['Capes', 'Capas', 'Layers'],
   mPrint: ['Imprimeix', 'Imprimir', 'Print'],
   spMenu: ['Veure signatures del document', 'Ver firmas del documento', 'View document signatures'],
   installApp: ["Instal·la l'app (Obre amb… des de Windows)", 'Instalar la app (Abrir con… desde Windows)', 'Install app (Open with… from Windows)'],
@@ -89,7 +93,7 @@ export async function loadDocument(bytes, name, extra = {}) {
   S.pages = Array.from({ length: src.numPages }, (_, i) => newPage(src.id, i));
   S.file = { name, handle: extra.handle || null, nearHandle: extra.nearHandle || null, driveId: extra.driveId || null, driveParents: extra.driveParents || null };
   S.zoom = 1;
-  await initAttachments();
+  await initAttachments(); await bookmarks.initOutline(); await layers.initLayers();
   resetHistory();
   emit('selection', null);
   $('#empty').hidden = true;
@@ -299,6 +303,23 @@ $('#btn-sidebar').addEventListener('click', () => {
   try { localStorage.setItem('pdfsimple.sidebar', hidden ? 'hidden' : 'shown'); } catch {}
 });
 $('#sidebar-scrim').addEventListener('click', () => document.body.classList.remove('side-open'));
+
+// Pestanyes de la barra lateral: pàgines (miniatures), marcadors i capes (només si el document en té)
+function showSide(which) {
+  if (which === 'layers' && !layers.hasLayers()) which = 'pages';
+  for (const b of $$('#side-tabs [data-side]')) b.classList.toggle('on', b.dataset.side === which);
+  $('#side-actions').hidden = $('#thumbs').hidden = which !== 'pages';
+  $('#pane-outline').hidden = which !== 'outline';
+  $('#pane-layers').hidden = which !== 'layers';
+  if (which === 'outline') bookmarks.render();
+  if (which === 'layers') layers.render();
+}
+$('#side-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-side]'); if (b) showSide(b.dataset.side); });
+on('docLoaded', () => {
+  $('#side-tabs [data-side=layers]').hidden = !layers.hasLayers();
+  showSide($('#side-tabs .on')?.dataset.side || 'pages');
+});
+on('layers', () => { viewer.relayoutAll(); thumbs.sync(); });
 
 async function printDoc() { objects.finishEdit(); (await import('./print.js')).printDocument(); }
 
@@ -579,6 +600,8 @@ async function restoreSession() {
     }
     S.mainId = rec.mainId;
     S.pages = rec.pages; S.forms = rec.forms; S.ocrStore = new Map(rec.ocr); S.attach = rec.attach || [];
+    S.outline = rec.outline || { edited: false, items: [] }; S.layers = rec.layers || {};
+    await layers.initLayers();
     for (const id of rec.attachData || []) S.attachData.set(id, blobs.get(id));
     for (const i of rec.images) { const bytes = blobs.get(i.id); S.images.set(i.id, { ...i, bytes, url: URL.createObjectURL(new Blob([bytes], { type: i.mime })) }); }
     if (rec.xfa) for (const [k, v] of rec.xfa) S.sources.get(S.mainId).doc.annotationStorage.setValue(k, v);

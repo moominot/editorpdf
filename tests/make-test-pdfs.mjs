@@ -45,4 +45,32 @@ a.addPage([595, 842]).drawText('Document amb fitxers adjunts', { x: 50, y: 780, 
 await a.attach(await doc.save(), 'annex-multipagina.pdf', { mimeType: 'application/pdf', description: 'Annex en PDF' });
 await a.attach(new TextEncoder().encode('Hola, adjunt de prova àèòç\n'), 'notes.txt', { mimeType: 'text/plain', description: 'Notes' });
 writeFileSync('tests/pdfs/adjunts.pdf', await a.save());
+
+// plànol amb capes (OCG, com els d'AutoCAD) i marcadors niats
+{
+  globalThis.window = { PDFLib: createRequire(import.meta.url)('../vendor/pdflib/pdf-lib.min.js') };
+  const { PDFName, PDFOperator, PDFHexString } = window.PDFLib;
+  const { writeOutline } = await import('../js/pdfstruct.js');
+  const p = await PDFDocument.create();
+  const pf = await p.embedFont(StandardFonts.Helvetica);
+  const ctx = p.context;
+  const layers = ['Cotes', 'Mobiliari', 'Text'].map((n) => ctx.register(ctx.obj({ Type: 'OCG', Name: PDFHexString.fromText(n) })));
+  p.catalog.set(PDFName.of('OCProperties'), ctx.obj({ OCGs: layers, D: { Order: layers, ON: [layers[0], layers[2]], OFF: [layers[1]] } }));
+  const titles = ['Planta baixa', 'Alçats', 'Seccions'];
+  const pages = titles.map((title) => {
+    const pg = p.addPage([842, 595]);
+    const oc = (name, fn) => { pg.pushOperators(PDFOperator.of('BDC', [PDFName.of('OC'), PDFName.of(name)])); fn(); pg.pushOperators(PDFOperator.of('EMC')); };
+    oc('L2', () => pg.drawText(title, { x: 40, y: 540, size: 28, font: pf }));
+    oc('L0', () => { pg.drawLine({ start: { x: 100, y: 120 }, end: { x: 700, y: 120 }, thickness: 1, color: rgb(0.9, 0.1, 0.1) }); pg.drawText('6,00 m', { x: 380, y: 126, size: 12, font: pf, color: rgb(0.9, 0.1, 0.1) }); });
+    oc('L1', () => { pg.drawRectangle({ x: 200, y: 200, width: 160, height: 90, color: rgb(0.2, 0.5, 0.9) }); pg.drawText('Taula', { x: 255, y: 240, size: 14, font: pf, color: rgb(1, 1, 1) }); });
+    pg.node.Resources().set(PDFName.of('Properties'), ctx.obj({ L0: layers[0], L1: layers[1], L2: layers[2] }));
+    return pg.ref;
+  });
+  writeOutline(p, [
+    { title: 'Planta baixa', page: pages[0], top: 595, open: true, items: [{ title: 'Detall mobiliari', page: pages[0], top: 300, items: [] }] },
+    { title: 'Alçats', page: pages[1], top: 595, bold: true, items: [] },
+    { title: 'Seccions', page: pages[2], top: 595, items: [] },
+  ]);
+  writeFileSync('tests/pdfs/capes-marcadors.pdf', await p.save());
+}
 console.log('ok');

@@ -170,5 +170,43 @@ console.log('Fitxers adjunts');
   });
 }
 
+// ---------------------------------------------------------------- marcadors i capes
+console.log('Marcadors i capes');
+{
+  const { writeOutline, readOutline, setLayerDefaults } = await import('../js/pdfstruct.js');
+  const { PDFDocument, PDFName } = PDFLib;
+  const src = readFileSync(new URL('./pdfs/capes-marcadors.pdf', import.meta.url));
+  await test('reescriu marcadors niats amb accents, enllaços i /Count', async () => {
+    const doc = await PDFDocument.load(src);
+    const [p0, , p2] = doc.getPages().map((p) => p.ref);
+    writeOutline(doc, [
+      { title: 'Seccions ñ', page: p2, top: 500, open: false, items: [{ title: 'Detall', page: p0, top: 100, items: [] }, { title: 'Web', url: 'https://example.com', items: [] }] },
+      { title: 'Sense pàgina', page: null, items: [] },
+    ]);
+    const out = await PDFDocument.load(await doc.save());
+    assert.deepEqual(readOutline(out), [
+      { title: 'Seccions ñ', page: 2, top: 500, url: null, items: [{ title: 'Detall', page: 0, top: 100, url: null, items: [] }, { title: 'Web', page: null, top: null, url: 'https://example.com', items: [] }] },
+      { title: 'Sense pàgina', page: null, top: null, url: null, items: [] },
+    ]);
+    const root = out.catalog.lookup(PDFName.of('Outlines'));
+    assert.equal(root.lookup(PDFName.of('Count')).asNumber(), 2); // el primer és tancat: els fills no compten
+    assert.equal(root.lookup(PDFName.of('First')).lookup(PDFName.of('Count')).asNumber(), -2);
+  });
+  await test('sense marcadors desapareix /Outlines', async () => {
+    const doc = await PDFDocument.load(src);
+    writeOutline(doc, []);
+    assert.equal((await PDFDocument.load(await doc.save())).catalog.lookup(PDFName.of('Outlines')), undefined);
+  });
+  await test('desa la visibilitat inicial de les capes', async () => {
+    const doc = await PDFDocument.load(src);
+    const D = () => doc.catalog.lookup(PDFName.of('OCProperties')).lookup(PDFName.of('D'));
+    const ids = (k) => D().lookup(PDFName.of(k)).asArray().map((r) => `${r.objectNumber}R`);
+    const [cotes, mob] = ids('ON').concat(ids('OFF')).sort((a, b) => parseInt(a) - parseInt(b));
+    setLayerDefaults(doc, { [cotes]: false, [mob]: true });
+    assert.ok(ids('OFF').includes(cotes) && !ids('ON').includes(cotes));
+    assert.ok(ids('ON').includes(mob) && !ids('OFF').includes(mob));
+  });
+}
+
 console.log(`\n${passed} correctes, ${failed} fallides`);
 process.exit(failed ? 1 : 0);

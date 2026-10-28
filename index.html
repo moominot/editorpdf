@@ -50,6 +50,10 @@
     <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-clip" viewBox="0 0 24 24"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L14.5 7"/></symbol>
+    <symbol id="i-bmadd" viewBox="0 0 24 24"><path d="M6 3h9v18l-4.5-4L6 21z"/><path d="M18 5v6M15 8h6"/></symbol>
+    <symbol id="i-indent" viewBox="0 0 24 24"><path d="M4 5h16M11 10h9M11 14h9M4 19h16M4 9l4 3-4 3z"/></symbol>
+    <symbol id="i-outdent" viewBox="0 0 24 24"><path d="M4 5h16M11 10h9M11 14h9M4 19h16M8 9l-4 3 4 3z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7h-3"/><path d="M7 14h10v7H7z"/></symbol>
   </defs>
 </svg>
@@ -147,6 +151,11 @@
 
   <div id="body">
     <aside id="sidebar">
+      <div id="side-tabs" role="tablist">
+        <button role="tab" data-side="pages" class="on" data-i18n="pages">Pàgines</button>
+        <button role="tab" data-side="outline" data-i18n="sideOutline">Marcadors</button>
+        <button role="tab" data-side="layers" data-i18n="sideLayers" hidden>Capes</button>
+      </div>
       <div id="side-actions">
         <button class="ib" data-pg="rotl" data-i18n-title="rotL"><svg><use href="#i-rotl"/></svg></button>
         <button class="ib" data-pg="rotr" data-i18n-title="rotR"><svg><use href="#i-rotr"/></svg></button>
@@ -157,6 +166,8 @@
         <button class="ib danger" data-pg="del" data-i18n-title="delPages"><svg><use href="#i-trash"/></svg></button>
       </div>
       <div id="thumbs" tabindex="0"></div>
+      <div class="side-pane" id="pane-outline" hidden></div>
+      <div class="side-pane" id="pane-layers" hidden></div>
     </aside>
     <div id="sidebar-scrim"></div>
 

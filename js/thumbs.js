@@ -3,6 +3,7 @@ import { S, pageIndex, emit } from './state.js';
 import { pageInfo, getPdfPage } from './pdfsource.js';
 import { el, clamp } from './util.js';
 import { movePages } from './pageops.js';
+import { ocConfig, layersKey } from './layers.js';
 
 const THUMB_W = 124;
 // Arrossegar pàgines entre finestres: el ratolí usa el drag natiu del navegador (HTML5)
@@ -40,7 +41,7 @@ export class Thumbs {
       let it = this.items.get(e.id);
       if (!it) it = this.make(e);
       it.num.textContent = i + 1;
-      it.sig = `${e.src}:${e.idx}:${e.rot}:${e.blank ? 'b' : ''}`;
+      it.sig = `${e.src}:${e.idx}:${e.rot}:${e.blank ? 'b' : ''}${e.src === S.mainId ? layersKey() : ''}`;
       if (it.sig !== it.renderedSig && it.visible) this.enqueue(it);
       const next = prev ? prev.nextSibling : this.list.firstChild;
       if (it.el !== next) this.list.insertBefore(it.el, next);
@@ -88,7 +89,7 @@ export class Thumbs {
       const page = await getPdfPage(e.src, e.idx);
       const vp = page.getViewport({ scale: scale * dpr, rotation: rot });
       cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
-      await page.render({ canvas: cv, viewport: vp }).promise;
+      await page.render({ canvas: cv, viewport: vp, optionalContentConfigPromise: ocConfig(e.src) }).promise;
     }
     it.canvas.width = cv.width; it.canvas.height = cv.height;
     it.canvas.style.width = THUMB_W + 'px'; it.canvas.style.height = Math.round(h * scale) + 'px';
