@@ -37,7 +37,7 @@ addStrings({
 export const MARKUP = new Set(['line', 'ellipse', 'cloud', 'note', 'stamp', 'measure']);
 export const STAMPS = [['REVISAT', 'ForComment'], ['APROVAT', 'Approved'], ['NO APROVAT', 'NotApproved'], ['ESBORRANY', 'Draft'], ['CONFORME', 'Approved']];
 S.opts.markup = { shape: 'cloud', color: '#e11d48', width: 1.5, stamp: 'REVISAT' };
-S.opts.measure = { kind: 'dist', color: '#1d4ed8', width: 1 };
+S.opts.measure = { kind: 'dist', color: '#1d4ed8', width: 1, fs: 0 }; // fs 0: segons la mida de la pàgina
 
 const NS = 'http://www.w3.org/2000/svg';
 const svgEl = (tag, attrs = {}) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) if (v != null) n.setAttribute(k, v); return n; };
@@ -90,11 +90,9 @@ function shape(svg, tag, attrs, o, fillHit = false) {
 }
 function labelSvg(svg, text, [x, y], size, rot) {
   const g = svgEl('g', { transform: rot ? `rotate(${-rot} ${x} ${y})` : null, style: 'pointer-events:none' });
-  const tx = svgEl('text', { x, y, 'font-size': size, 'font-family': 'Helvetica, Arial, sans-serif', 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: 'currentColor' });
+  const tx = svgEl('text', { x, y, 'font-size': size, 'font-family': 'Helvetica, Arial, sans-serif', 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: 'currentColor', stroke: 'none' });
   tx.textContent = text;
-  const bg = svgEl('rect', { fill: '#fff' });
-  g.append(bg, tx); svg.append(g);
-  requestAnimationFrame(() => { try { const b = tx.getBBox(); const p = size * 0.2; bg.setAttribute('x', b.x - p); bg.setAttribute('y', b.y - p * 0.5); bg.setAttribute('width', b.width + 2 * p); bg.setAttribute('height', b.height + p); } catch {} });
+  g.append(tx); svg.append(g);
 }
 
 function build(pv, o, d, selected) {
@@ -127,10 +125,10 @@ function build(pv, o, d, selected) {
     case 'stamp': {
       const { x, y, w, h } = o;
       svg.append(svgEl('rect', { x, y, width: w, height: h, rx: h * 0.15, fill: 'rgba(255,255,255,.01)', stroke: o.color, 'stroke-width': Math.max(1.5, h / 14), style: 'cursor:move' }));
-      const big = svgEl('text', { x: x + w / 2, y: y + h * 0.56, 'font-size': h * 0.48, 'font-family': 'Helvetica, Arial, sans-serif', 'font-weight': 700, 'text-anchor': 'middle', fill: o.color, textLength: w * 0.9, lengthAdjust: 'spacingAndGlyphs', style: 'pointer-events:none' });
+      const big = svgEl('text', { x: x + w / 2, y: y + h * 0.56, 'font-size': h * 0.48, 'font-family': 'Helvetica, Arial, sans-serif', 'font-weight': 700, 'text-anchor': 'middle', fill: o.color, stroke: 'none', textLength: w * 0.9, lengthAdjust: 'spacingAndGlyphs', style: 'pointer-events:none' });
       big.textContent = o.text; svg.append(big);
       const sub = [o.author, dateText(o.date)].filter(Boolean).join(' · ');
-      if (sub) { const tx = svgEl('text', { x: x + w / 2, y: y + h * 0.86, 'font-size': h * 0.17, 'font-family': 'Helvetica, Arial, sans-serif', 'text-anchor': 'middle', fill: o.color, style: 'pointer-events:none' }); tx.textContent = sub; svg.append(tx); }
+      if (sub) { const tx = svgEl('text', { x: x + w / 2, y: y + h * 0.86, 'font-size': h * 0.17, 'font-family': 'Helvetica, Arial, sans-serif', 'text-anchor': 'middle', fill: o.color, stroke: 'none', style: 'pointer-events:none' }); tx.textContent = sub; svg.append(tx); }
       break;
     }
     case 'measure': {
@@ -268,7 +266,7 @@ function onDrawKey(e) {
 }
 function draftObj() {
   const e = draw.pv.entry, sc = scaleOf(e), kind = draw.kind === 'calib' ? 'dist' : draw.kind;
-  return { type: 'measure', kind, pts: [...draw.pts, draw.hover].filter(Boolean), factor: sc.factor, unit: sc.unit, scaleLabel: sc.label, color: S.opts.measure.color, width: S.opts.measure.width, fs: baseSize(draw.pv) };
+  return { type: 'measure', kind, pts: [...draw.pts, draw.hover].filter(Boolean), factor: sc.factor, unit: sc.unit, scaleLabel: sc.label, color: S.opts.measure.color, width: S.opts.measure.width, fs: S.opts.measure.fs || baseSize(draw.pv) };
 }
 function renderDraw() {
   if (!draw) return;
@@ -364,6 +362,12 @@ function widthInput(src, apply) {
   w.addEventListener('change', () => { if (+w.value > 0) apply({ width: +w.value }); });
   return el('label', {}, t('width'), w);
 }
+function fsInput(v, apply) {
+  const i = el('input', { type: 'number', min: 1, max: 200, step: 1, value: Math.round(v * 10) / 10 });
+  i.addEventListener('input', () => { if (+i.value >= 1) apply({ fs: +i.value }, false); });
+  i.addEventListener('change', () => { if (+i.value >= 1) apply({ fs: +i.value }); });
+  return el('label', {}, t('size'), i);
+}
 function stampSelect(cur, fn) {
   const s = el('select'); for (const [k] of STAMPS) s.append(el('option', { value: k, text: k }));
   if (!STAMPS.some(([k]) => k === cur)) s.append(el('option', { value: cur, text: cur }));
@@ -384,6 +388,8 @@ const measureOpts = ({ kids, apply, rebuild, colorInput }) => {
   kids.push(...KINDS.map(([k, n, ico]) => iconBtn(ico, t(n), op.kind === k, () => { cancelDraw(); op.kind = k; rebuild(); if (k === 'calib') toast(t('hintCalib'), '', 5000); })), el('span', { class: 'sep' }));
   kids.push(el('button', { class: 'tb', text: `${t('msScale')} ${sc.label} (${sc.unit})`, title: t('msScaleBtn'), onclick: scaleDialog }));
   kids.push(colorInput(op.color, (v) => apply({ color: v }, false), (v) => apply({ color: v })));
+  const pv = window.__app.viewer.views.get(S.pages[S.cur]?.id);
+  if (op.kind !== 'calib') kids.push(fsInput(op.fs || (pv?.info ? baseSize(pv) : 12), apply));
   kids.push(el('span', { class: 'hint tip', text: t(op.kind === 'calib' ? 'hintCalib' : 'hintMeasure') }));
 };
 // Objecte seleccionat
@@ -392,6 +398,7 @@ const objectOpts = ({ o, kids, apply, rebuild, swatches, colorInput }) => {
   kids.push(...swatches(MK_COLORS, o.color, (c) => { apply({ color: c }); rebuild(); }), colorInput(o.color, (v) => apply({ color: v }, false), (v) => apply({ color: v })));
   if (o.type === 'stamp') kids.push(stampSelect(o.text, (v) => apply({ text: v, stampName: STAMPS.find(([k]) => k === v)?.[1] || 'Draft' })));
   else if (o.type !== 'note') kids.push(widthInput(o, apply));
+  if (o.type === 'measure') kids.push(fsInput(o.fs, apply));
   if (o.type === 'line') kids.push(iconBtn('i-arrow', t('mkArrow'), o.arrow, () => { apply({ arrow: !o.arrow }); rebuild(); }));
   kids.push(commentInput(o));
 };

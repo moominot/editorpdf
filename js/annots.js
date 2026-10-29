@@ -87,11 +87,9 @@ export function addMarkupAnnot(doc, page, o, view, font, { label = '', rot = 0, 
     const a = rot * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
     const dx = center ? -tw / 2 : 0, dy = -th * 0.35; // centra horitzontalment i verticalment sobre l'àncora
     const tx = X(x) + c * dx - sn * dy, ty = Y(y) + sn * dx + c * dy;
-    // fons blanc perquè es llegeixi sobre el dibuix
-    const pad = size * 0.2;
-    const box = [[-pad + dx, -pad * 1.2 + dy - th * 0.2], [tw + pad + dx, -pad * 1.2 + dy - th * 0.2], [tw + pad + dx, th + pad + dy - th * 0.2], [-pad + dx, th + pad + dy - th * 0.2]]
+    // caixa del text (sense fons: el dibuix de sota s'ha de continuar veient)
+    const box = [[dx, dy - th * 0.25], [tw + dx, dy - th * 0.25], [tw + dx, th + dy], [dx, th + dy]]
       .map(([u, v]) => [X(x) + c * u - sn * v, Y(y) + sn * u + c * v]);
-    ops += `q 1 1 1 rg ${box.map(([u, v], i) => `${f(u)} ${f(v)} ${i ? 'l' : 'm'}`).join(' ')} h f Q\n`;
     ops += `BT /Helv ${f(size)} Tf ${f(c)} ${f(sn)} ${f(-sn)} ${f(c)} ${f(tx)} ${f(ty)} Tm ${font.encodeText(s).toString()} Tj ET\n`;
     for (const [u, v] of box) ext.push([u - view[0], view[3] - v]);
   };
